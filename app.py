@@ -9,6 +9,8 @@ import time
 # main.py to expose a function that creates/returns the node list without
 # blocking. Example below assumes you can `from main import all_nodes`.
 
+from src.node import Node
+from src.constants import CONNECTION_RANGE_KM, SIZE_KM, N
 from src.main import create_simulation
 
 all_nodes = create_simulation()
@@ -62,6 +64,18 @@ def snapshot_nodes():
     return nodes
 
 
+def add_new_node(position=None):
+    """Add a new node to the simulation."""
+    global all_nodes
+    all_nodes.append(
+        Node(
+            name=f"[node-{len(all_nodes)}]",
+            position=position if position else (0, 0)
+        )
+    )
+    for node in all_nodes:
+        node.all_nodes = all_nodes
+
 def background_emitter():
     """Background thread that emits snapshots via SocketIO periodically."""
     while True:
@@ -74,7 +88,11 @@ def background_emitter():
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    """Render the main index page."""
+    size_km = SIZE_KM
+    connection_range_km = CONNECTION_RANGE_KM
+    n = N
+    return render_template("index.html", size_km=size_km, connection_range_km=connection_range_km, n=n)
 
 
 @socketio.on("connect")
@@ -83,11 +101,42 @@ def on_connect():
 
 @socketio.on('restart')
 def on_restart():
+    """Handle restart request from the client."""
     global all_nodes
     all_nodes = create_simulation()
     nodes = snapshot_nodes()
     socketio.emit("snapshot", {"nodes": nodes})
     # raise NotImplementedError('IMPLEMENT THIS')
+
+@socketio.on("update")
+def on_update(data):
+    """Handle updates from the client."""
+    print("Received update:", data, flush=True)
+    global all_nodes
+    num_nodes = data.get("num_nodes", len(all_nodes))
+    area_length = data.get("area_length", SIZE_KM)
+    connection_range = data.get("connection_range", CONNECTION_RANGE_KM)
+    if all_nodes is not None:
+        # Clear existing nodes if any
+        all_nodes.clear()
+    all_nodes = create_simulation(
+        num_nodes=num_nodes,
+        area_length=area_length,
+        connection_range=connection_range,
+    )
+    nodes = snapshot_nodes()
+    socketio.emit("snapshot", {"nodes": nodes})
+    print("Updated nodes and emitted snapshot", flush=True)
+    
+@socketio.on("add_node")
+def on_add_node(data):
+    """Handle adding a new node."""
+    print("Adding node:", data, flush=True)
+    position = data.get("position", (0, 0))
+    add_new_node(position)
+    nodes = snapshot_nodes()
+    socketio.emit("snapshot", {"nodes": nodes})
+    print("Added new node and emitted snapshot", flush=True)
 
 
 @socketio.on("disconnect")

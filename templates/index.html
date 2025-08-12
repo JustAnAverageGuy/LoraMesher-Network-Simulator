@@ -3,20 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
     <title>Network Simulation Dashboard</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 0; }
-      #container { display: flex; height: 100vh; }
-      #canvas-wrap { flex: 1; position: relative; }
-      svg { width: 1000px; height: 1000px; background: #f7f7f7; border: 1px solid black; margin: 10px }
-      .node { cursor: pointer; }
-      #sidepanel { width: 360px; border-left: 1px solid #ddd; padding: 8px; overflow: auto; background: #fff; }
-      .node-entry { border-bottom: 1px solid #eee; padding: 6px 4px; }
-      .routes-table { width: 100%; border-collapse: collapse; }
-      .routes-table th, .routes-table td { text-align: left; padding: 3px 6px; font-size: 12px; }
-      .routes-table th { font-weight: 600; }
-
-      /* Tooltip styles */
+      .node-entry {
+        border-bottom: 1px solid #eee;
+        padding: 6px 4px;
+      }
       #tooltip {
         position: absolute;
         pointer-events: none;
@@ -28,7 +21,7 @@
         display: none;
         max-width: 240px;
         z-index: 10;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.15);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
       }
       #tooltip table {
         width: 100%;
@@ -38,21 +31,79 @@
         padding: 2px 4px;
         border: 1px solid #ddd;
       }
+      .routes-table {
+        width: 100%;
+      }
+      .routes-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
-    <button type="btn" id="reset-button">Restart Simulation</button>
-    <div id="container">
-      <div id="canvas-wrap">
-        <svg id="svg"></svg>
-        <div id="tooltip"></div>
+    <div class="py-4">
+      <div class="card shadow-sm mb-4">
+        <div class="card-body text-center">
+          <h1 class="display-5 fw-bold mb-2">Network Simulation Dashboard</h1>
+          <p class="text-muted mb-0">Hover over nodes to view routes or click on empty space to add a node.</p>
+        </div>
       </div>
-      <div id="sidepanel">
-        <h3>Nodes</h3>
-        <div id="nodes-list"></div>
+
+      <div class="row g-3">
+        <div class="col-lg-3">
+          <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Simulation Controls</div>
+            <div class="card-body">
+              <form id="control-form">
+                <div class="mb-3">
+                  <label class="form-label">Number of Nodes</label>
+                  <input type="number" class="form-control" id="num-nodes" value="{{n}}" min="1" max="100">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Connection Range (km)</label>
+                  <input type="number" class="form-control" id="connection-range" value="{{connection_range_km}}" step="0.1">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Total Area Length (km)</label>
+                  <input type="number" class="form-control" id="area-length" value="{{size_km}}" step="0.1">
+                </div>
+                <div class="d-flex gap-2">
+                  <button id="update-button" class="btn btn-primary w-100">Start</button>
+                  <button id="reset-button" class="btn btn-danger w-100">Restart</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-9">
+          <div class="row g-3">
+            <div class="col-lg-8">
+              <div class="card shadow-sm">
+                <div class="card-header fw-semibold">Simulation Canvas</div>
+                <div class="card-body p-0">
+                  <div id="canvas-wrap" class="bg-white">
+                    <svg id="svg" style="height: 600px;" class="w-100 bg-white border border-1"></svg>
+                    <div id="tooltip"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-4">
+              <div class="card shadow-sm h-100">
+                <div class="card-header fw-semibold">Nodes</div>
+                <div class="card-body p-2 overflow-auto" style="max-height:600px;">
+                  <div id="nodes-list"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/socket.io.min.js"></script>
     <script>
       const socket = io();
@@ -61,13 +112,31 @@
       svg.appendChild(nodesGroup);
       const tooltip = document.getElementById('tooltip');
 
-      const SIZE_KM = 1000; // scale for positions
-      const RADIUS = 300;   // connection radius in km
+      let SIZE_KM = "{{ size_km }}";
+      let CONNECTION_RANGE_KM = "{{ connection_range_km }}";
 
       document.getElementById("reset-button").addEventListener('click', (event) => {
         event.preventDefault();
+        document.getElementById('num-nodes').value = "{{ n }}";
+        document.getElementById('connection-range').value = "{{ connection_range_km }}";
+        document.getElementById('area-length').value = "{{ size_km }}"; 
+        SIZE_KM = "{{ size_km }}";
+        CONNECTION_RANGE_KM = "{{ connection_range_km }}";
         socket.emit('restart');
-        console.log('emitted restart');
+      });
+
+      document.getElementById("update-button").addEventListener('click', (event) => {
+        event.preventDefault();
+        const numNodes = document.getElementById('num-nodes').value;
+        const connectionRange = document.getElementById('connection-range').value;
+        const areaLength = document.getElementById('area-length').value;
+        CONNECTION_RANGE_KM = parseInt(connectionRange, 10);
+        SIZE_KM = parseInt(areaLength, 10);
+        socket.emit('update', {
+          num_nodes: parseInt(numNodes, 10),
+          connection_range: parseInt(connectionRange, 10),
+          area_length: parseInt(areaLength, 10)
+        });
       });
 
       function clearSvg() {
@@ -88,13 +157,13 @@
         }
         tooltip.innerHTML = html;
         tooltip.style.display = 'block';
-        tooltip.style.left = (evt.pageX + 10) + 'px';
-        tooltip.style.top = (evt.pageY + 10) + 'px';
+        tooltip.style.left = (evt.offsetX + 10) + 'px';
+        tooltip.style.top = (evt.offsetY + 10) + 'px';
       }
 
       function moveTooltip(evt) {
-        tooltip.style.left = (evt.pageX + 10) + 'px';
-        tooltip.style.top = (evt.pageY + 10) + 'px';
+        tooltip.style.left = (evt.offsetX + 10) + 'px';
+        tooltip.style.top = (evt.offsetY + 10) + 'px';
       }
 
       function hideTooltip() {
@@ -112,9 +181,9 @@
           y: (n.y / SIZE_KM) * height
         }));
 
-        const rScreen = (RADIUS / SIZE_KM) * Math.min(width, height);
+        const rScreen = (CONNECTION_RANGE_KM / SIZE_KM) * Math.min(width, height);
 
-        // Draw connection lines
+        // Connections
         for (let i = 0; i < screenPos.length; i++) {
           for (let j = i + 1; j < screenPos.length; j++) {
             const dx = screenPos[i].x - screenPos[j].x;
@@ -134,12 +203,12 @@
           }
         }
 
-        // Draw circles and labels
+        // Nodes
         nodes.forEach(n => {
           const cx = (n.x / SIZE_KM) * width;
           const cy = (n.y / SIZE_KM) * height;
 
-          const r = (RADIUS / SIZE_KM) * Math.min(width, height);
+          const r = (CONNECTION_RANGE_KM / SIZE_KM) * Math.min(width, height);
           const circ = document.createElementNS('http://www.w3.org/2000/svg','circle');
           circ.setAttribute('cx', cx);
           circ.setAttribute('cy', cy);
@@ -156,7 +225,6 @@
           nodeC.setAttribute('r', 6);
           nodeC.setAttribute('fill', '#007bff');
           nodeC.classList.add('node');
-          nodeC.dataset.name = n.name;
           nodeC.addEventListener('mouseenter', (e) => showTooltip(e, n));
           nodeC.addEventListener('mousemove', moveTooltip);
           nodeC.addEventListener('mouseleave', hideTooltip);
@@ -180,33 +248,41 @@
           const div = document.createElement('div');
           div.className = 'node-entry';
           div.innerHTML = `<strong>${n.name}</strong> (${n.role})<br/>`;
-
           const table = document.createElement('table');
-          table.className = 'routes-table';
+          table.className = 'routes-table table table-sm';
           const thead = document.createElement('thead');
           thead.innerHTML = '<tr><th>dst</th><th>via</th><th>metric</th></tr>';
           table.appendChild(thead);
           const tbody = document.createElement('tbody');
-
           n.routes.forEach(r => {
             const tr = document.createElement('tr');
             tr.innerHTML = `<td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td>`;
             tbody.appendChild(tr);
           });
           table.appendChild(tbody);
-
           div.appendChild(table);
           list.appendChild(div);
         });
       }
 
-      socket.on('connect', () => console.log(`${Date.now()} connected to server`));
-      socket.on('disconnect', () => console.log(`${Date.now()} disconnected from the server`));
-      socket.on('snapshot', data => {
-        console.log(`SNAPSHOT RECEIVED`, data);
-        render(data.nodes);
+      // Click to add node
+      svg.addEventListener('click', function (evt) {
+        if (evt.target.classList.contains('node')) return;
+        const rect = svg.getBoundingClientRect();
+        const clickX = evt.offsetX;
+        const clickY = evt.offsetY;
+        const width = svg.clientWidth;
+        const height = svg.clientHeight;
+        const simX = (clickX / width) * SIZE_KM;
+        const simY = (clickY / height) * SIZE_KM;
+        const confirmAdd = confirm(`Create a new node at (${simX.toFixed(2)}, ${simY.toFixed(2)})?`);
+        if (confirmAdd) {
+          socket.emit('add_node', { position: [simX, simY] });
+        }
       });
+
+      socket.on('connect', () => console.log('Connected to server'));
+      socket.on('snapshot', data => render(data.nodes));
     </script>
   </body>
 </html>
-
