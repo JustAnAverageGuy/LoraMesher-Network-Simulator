@@ -35,6 +35,14 @@ html_template = """
             ctx.fillStyle = 'red';
             ctx.fill();
 
+            // Draw visualization distance
+
+            ctx.beginPath();
+            ctx.arc(point[0],point[1], DISTANCE, 0, Math.PI * 2);
+            ctx.strokeStyle = 'pink';
+            ctx.stroke();
+            ctx.closePath();
+
             // Draw label
             ctx.fillStyle = 'blue';
             ctx.fillText(`(${point[0]}, ${point[1]})`, point[0] + 10, point[1]);

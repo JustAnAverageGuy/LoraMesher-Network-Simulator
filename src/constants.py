@@ -3,7 +3,8 @@ import sys
 
 N                   = 10
 SIZE_KM             = 1000
-CONNECTION_RANGE_KM = 100
+# CONNECTION_RANGE_KM = 100
+CONNECTION_RANGE_KM = 300
 HELLO_TIME_SECS     = 5
 BROADCAST_ADDR      = 'FFFF'
 

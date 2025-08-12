@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Network Simulation Dashboard</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; }
+      #container { display: flex; height: 100vh; }
+      #canvas-wrap { flex: 1; position: relative; }
+      svg { width: 100%; height: 100%; background: #f7f7f7; }
+      .node { cursor: pointer; }
+      #sidepanel { width: 360px; border-left: 1px solid #ddd; padding: 8px; overflow: auto; background: #fff; }
+      .node-entry { border-bottom: 1px solid #eee; padding: 6px 4px; }
+      .routes-table { width: 100%; border-collapse: collapse; }
+      .routes-table th, .routes-table td { text-align: left; padding: 3px 6px; font-size: 12px; }
+      .routes-table th { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <div id="canvas-wrap">
+        <svg id="svg"></svg>
+      </div>
+      <div id="sidepanel">
+        <h3>Nodes</h3>
+        <div id="nodes-list"></div>
+      </div>
+    </div>
+
+    <!-- Socket.IO client (served from the Flask-SocketIO server) -->
+    <!-- <script src="/socket.io/socket.io.js"></script> -->
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js" integrity="sha384-mkQ3/7FUtcGyoppY6bz/PORYoGqOl7/aSUMn2ymDOJcapfS6PHqxhRTMh1RR0Q6+" crossorigin="anonymous"></script>
+    <script>
+      const socket = io();
+
+      // Canvas & drawing helpers
+      const svg = document.getElementById('svg');
+      const nodesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      svg.appendChild(nodesGroup);
+
+      // Config: scale positions into the svg size
+      const SIZE_KM = 100; // adjust to your constants.SIZE_KM or make dynamic
+
+      function clearSvg() {
+        while (nodesGroup.firstChild) nodesGroup.removeChild(nodesGroup.firstChild);
+      }
+
+      function render(nodes) {
+        clearSvg();
+        const width = svg.clientWidth;
+        const height = svg.clientHeight;
+
+        // draw connection range circles and node circles
+        nodes.forEach(n => {
+          const cx = (n.x / SIZE_KM) * width;
+          const cy = (n.y / SIZE_KM) * height;
+
+          // connection circle (low opacity)
+          const r = (30 / SIZE_KM) * Math.min(width, height); // you can compute properly
+          const circ = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          circ.setAttribute('cx', cx);
+          circ.setAttribute('cy', cy);
+          circ.setAttribute('r', r);
+          circ.setAttribute('fill', 'none');
+          circ.setAttribute('stroke', '#bbb');
+          circ.setAttribute('stroke-width', '1');
+          circ.setAttribute('opacity', '0.35');
+          nodesGroup.appendChild(circ);
+
+          // node circle
+          const nodeC = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          nodeC.setAttribute('cx', cx);
+          nodeC.setAttribute('cy', cy);
+          nodeC.setAttribute('r', 6);
+          nodeC.setAttribute('fill', '#007bff');
+          nodeC.classList.add('node');
+          nodeC.dataset.name = n.name;
+          nodesGroup.appendChild(nodeC);
+
+          // label
+          const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+          label.setAttribute('x', cx + 8);
+          label.setAttribute('y', cy + 4);
+          label.setAttribute('font-size', '12');
+          label.textContent = n.name;
+          nodesGroup.appendChild(label);
+
+          nodeC.addEventListener('mouseenter', () => showNodeDetails(n));
+          nodeC.addEventListener('mouseleave', () => hideNodeDetails());
+        });
+
+        renderSidePanel(nodes);
+      }
+
+      function renderSidePanel(nodes) {
+        const list = document.getElementById('nodes-list');
+        list.innerHTML = '';
+        nodes.forEach(n => {
+          const div = document.createElement('div');
+          div.className = 'node-entry';
+          div.innerHTML = `<strong>${n.name}</strong> (${n.role})<br/>`;
+
+          const table = document.createElement('table');
+          table.className = 'routes-table';
+          const thead = document.createElement('thead');
+          thead.innerHTML = '<tr><th>dst</th><th>via</th><th>metric</th></tr>';
+          table.appendChild(thead);
+          const tbody = document.createElement('tbody');
+
+          n.routes.forEach(r => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td>`;
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+
+          div.appendChild(table);
+          list.appendChild(div);
+        });
+      }
+
+      function showNodeDetails(node) {
+        // show detailed popup (here we reuse the side panel highlighting instead)
+      }
+
+      function hideNodeDetails() {
+        // nothing for now
+      }
+
+      socket.on('connect', () => console.log('connected to server'));
+      socket.on('snapshot', data => {
+        // data.nodes is a list of nodes with x,y,name,role,routes
+        render(data.nodes);
+      });
+
+    </script>
+  </body>
+</html>

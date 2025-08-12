@@ -24,7 +24,7 @@
         const ctx = canvas.getContext('2d');
 
         // Points data from Python
-        const points = [[10.0, 500], [109.0, 500], [208.0, 500], [307.0, 500], [406.0, 500], [505.0, 500], [604.0, 500], [703.0, 500], [802.0, 500], [901.0, 500]];
+        const points = [[755.248409383758, 402.3653362565691], [750.8649176002915, 996.2551959618775], [360.51442881452954, 105.83519314688917], [183.16351280993902, 510.98913638446174], [963.5203563193851, 712.9043774551978], [282.507922371484, 127.30559598922665], [93.58327023351364, 177.79418306483407], [455.3864940242899, 669.063265266763], [402.1747338281976, 707.7797377033401], [585.9574841617364, 654.5838769626403]];
         const DISTANCE = 100;
 
         // Draw points and labels on the canvas
@@ -34,6 +34,14 @@
             ctx.arc(point[0], point[1], 5, 0, Math.PI * 2, true);
             ctx.fillStyle = 'red';
             ctx.fill();
+
+            // Draw visualization distance
+
+            ctx.beginPath();
+            ctx.arc(point[0],point[1], DISTANCE, 0, Math.PI * 2);
+            ctx.strokeStyle = 'pink';
+            ctx.stroke();
+            ctx.closePath();
 
             // Draw label
             ctx.fillStyle = 'blue';
