@@ -9,19 +9,15 @@ import time
 # main.py to expose a function that creates/returns the node list without
 # blocking. Example below assumes you can `from main import all_nodes`.
 
-try:
-    # Try to import an attribute `all_nodes` from your main module. If your
-    # project is structured differently, modify this line accordingly.
-    from src.main import create_simulation
-    all_nodes = create_simulation()
-    print("nodes created", flush=True)
+from src.main import create_simulation
 
-except Exception:
-    all_nodes = None
+all_nodes = create_simulation()
+print("nodes created", flush=True)
+
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "secret!"
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*", logger=True)
 
 EMIT_INTERVAL = 1.0  # seconds between snapshot emits
 
@@ -71,8 +67,9 @@ def background_emitter():
     while True:
         nodes = snapshot_nodes()
         socketio.emit("snapshot", {"nodes": nodes})
+        # print(f'snapshot {nodes = }')
         print("EMITTED SNAPSHOT", flush=True)
-        time.sleep(EMIT_INTERVAL)
+        socketio.sleep(2)
 
 
 @app.route("/")
@@ -83,6 +80,14 @@ def index():
 @socketio.on("connect")
 def on_connect():
     print("Client connected", flush=True)
+
+@socketio.on('restart')
+def on_restart():
+    global all_nodes
+    all_nodes = create_simulation()
+    nodes = snapshot_nodes()
+    socketio.emit("snapshot", {"nodes": nodes})
+    # raise NotImplementedError('IMPLEMENT THIS')
 
 
 @socketio.on("disconnect")
@@ -102,4 +107,4 @@ if __name__ == "__main__":
 
     # Run SocketIO server
     print("SERVER STARTED", flush=True)
-    socketio.run(app, host="0.0.0.0", port=5000)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
