@@ -83,7 +83,7 @@
                 <div class="card-header fw-semibold">Simulation Canvas</div>
                 <div class="card-body p-0">
                   <div id="canvas-wrap" class="bg-white">
-                    <svg id="svg" style="height: 600px;" class="w-100 bg-white border border-1"></svg>
+                    <svg id="svg" class="w-100 vh-100 bg-white border border-1"></svg>
                     <div id="tooltip"></div>
                   </div>
                 </div>
@@ -91,9 +91,9 @@
             </div>
 
             <div class="col-lg-4">
-              <div class="card shadow-sm h-100">
+              <div class="card shadow-sm">
                 <div class="card-header fw-semibold">Nodes</div>
-                <div class="card-body p-2 overflow-auto" style="max-height:600px;">
+                <div class="card-body vh-100 p-2 overflow-auto">
                   <div id="nodes-list"></div>
                 </div>
               </div>
@@ -182,6 +182,8 @@
         }));
 
         const rScreen = (CONNECTION_RANGE_KM / SIZE_KM) * Math.min(width, height);
+
+        console.log("Width:", width, "Height:", height, "Size KM:", SIZE_KM, "Connection Range KM:", CONNECTION_RANGE_KM, "rScreen:", rScreen);
 
         // Connections
         for (let i = 0; i < screenPos.length; i++) {
