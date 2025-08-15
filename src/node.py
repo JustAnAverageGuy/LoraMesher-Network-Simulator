@@ -27,9 +27,11 @@ class Node:
 
         self.routes = RoutingTable(self.name)
 
-        self.t = Timer(HELLO_TIME_SECS, self.broadcast_routing)
+        self.timer_handle = Timer(HELLO_TIME_SECS, self.broadcast_routing)
 
-        self.t.start()
+        self.timer_handle.start()
+
+
 
     def process_route(self, src: str, routes: Routes):
         is_routing_table_updated = False
@@ -76,9 +78,9 @@ class Node:
 
         self.broadcast(RoutingPacket(src=self.name, routes=routing_packet))
         if DEBUG: print(f"{self}: Sent Routing Info")
-        if self.t is not None: self.t.cancel()
-        self.t = Timer(HELLO_TIME_SECS, self.broadcast_routing)
-        self.t.start()
+        if self.timer_handle is not None: self.timer_handle.cancel()
+        self.timer_handle = Timer(HELLO_TIME_SECS, self.broadcast_routing)
+        self.timer_handle.start()
 
     def can_send(self, other: "Node"):
         if other == self:
