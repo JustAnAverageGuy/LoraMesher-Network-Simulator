@@ -15,6 +15,17 @@
       .routes-table { width: 100%; border-collapse: collapse; }
       .routes-table th, .routes-table td { text-align: left; padding: 3px 6px; font-size: 12px; }
       .routes-table th { font-weight: 600; }
+      #node-count {
+        display: inline-block;
+        width: 2ch;          /* enough for 2 characters */
+        text-align: right;   /* aligns numbers to the right */
+        font-family: monospace;
+      }
+      .highlight-range {
+        stroke: orange !important;
+        stroke-width: 2 !important;
+        opacity: 1 !important;
+      }
 
       /* Tooltip styles */
       #tooltip {
@@ -38,11 +49,54 @@
         padding: 2px 4px;
         border: 1px solid #ddd;
       }
+
+      /* Slider styles */
+      #controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px;
+        background: #f2f2f2;
+        border-bottom: 1px solid #ccc;
+      }
+
+      .highlight-node {
+        stroke: orange !important;
+        stroke-width: 3 !important;
+      }
+
+      .highlight-range {
+        stroke: orange !important;
+        stroke-width: 2 !important;
+        opacity: 1 !important;
+      }
+
+      /* Fixed height scrollable tables */
+      .routes-wrapper {
+        min-height: 100px;
+        max-height: 100px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        margin-top: 4px;
+      }
+
+      .routes-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .routes-table th, .routes-table td {
+        padding: 2px 4px;
+        border: 1px solid #ddd;
+      }
     </style>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
   </head>
   <body>
-    <button type="btn" id="reset-button">Restart Simulation</button>
+    <div id="controls">
+      <button id="reset-button">Restart Simulation</button>
+      <label for="node-slider">Number of nodes: <span id="node-count">10</span></label>
+      <input type="range" id="node-slider" min="2" max="30" value="10" />
+    </div>
     <div id="container">
       <div id="canvas-wrap">
         <svg id="svg"></svg>
@@ -65,9 +119,24 @@
       const SIZE_KM = 1000; // scale for positions
       const RADIUS = 300;   // connection radius in km
 
+      // Controls
+      const slider = document.getElementById('node-slider');
+      const nodeCountLabel = document.getElementById('node-count');
+
+      slider.addEventListener('input', () => {
+        nodeCountLabel.textContent = slider.value;
+      });
+
+      slider.addEventListener('change', () => {
+        const N = parseInt(slider.value, 10);
+        socket.emit('restart', { N });
+        console.log(`Restart emitted with N = ${N}`);
+      });
+
       document.getElementById("reset-button").addEventListener('click', (event) => {
         event.preventDefault();
-        socket.emit('restart');
+        const N = parseInt(slider.value, 10);
+        socket.emit('restart', { N });
         console.log('emitted restart');
       });
 
@@ -106,6 +175,8 @@
         clearSvg();
         const width = svg.clientWidth;
         const height = svg.clientHeight;
+
+        const nodeElementsMap = {}; // store circle + range for quick lookup
 
         const screenPos = nodes.map(n => ({
           name: n.name,
@@ -155,12 +226,23 @@
           nodeC.setAttribute('cx', cx);
           nodeC.setAttribute('cy', cy);
           nodeC.setAttribute('r', 6);
-          nodeC.setAttribute('fill', '#007bff');
+          const isGateway = n.role == 'GATEWAY';
+          nodeC.setAttribute('fill', isGateway ? 'red' : '#007bff');
           nodeC.classList.add('node');
           nodeC.dataset.name = n.name;
-          nodeC.addEventListener('mouseenter', (e) => showTooltip(e, n));
+
+          nodeC.addEventListener('mouseenter', (e) => {
+            circ.classList.add('highlight-range');
+            nodeC.classList.add('highlight-node');
+            showTooltip(e, n);
+          });
           nodeC.addEventListener('mousemove', moveTooltip);
-          nodeC.addEventListener('mouseleave', hideTooltip);
+          nodeC.addEventListener('mouseleave', () => {
+            circ.classList.remove('highlight-range');
+            nodeC.classList.remove('highlight-node');
+            hideTooltip();
+          });
+
           nodesGroup.appendChild(nodeC);
 
           const label = document.createElementNS('http://www.w3.org/2000/svg','text');
@@ -169,18 +251,25 @@
           label.setAttribute('font-size', '12');
           label.textContent = n.name;
           nodesGroup.appendChild(label);
+
+          // store for sidepanel hover
+          nodeElementsMap[n.name] = { nodeCircle: nodeC, rangeCircle: circ };
         });
 
-        renderSidePanel(nodes);
+        renderSidePanel(nodes, nodeElementsMap);
       }
 
-      function renderSidePanel(nodes) {
+      function renderSidePanel(nodes, nodeElementsMap) {
         const list = document.getElementById('nodes-list');
         list.innerHTML = '';
         nodes.forEach(n => {
           const div = document.createElement('div');
           div.className = 'node-entry';
           div.innerHTML = `<strong>${n.name}</strong> (${n.role})<br/>`;
+
+          // Scrollable table container
+          const wrapper = document.createElement('div');
+          wrapper.className = 'routes-wrapper';
 
           const table = document.createElement('table');
           table.className = 'routes-table';
@@ -196,10 +285,25 @@
           });
           table.appendChild(tbody);
 
-          div.appendChild(table);
+          wrapper.appendChild(table);
+          div.appendChild(wrapper);
+
+          // Hover highlight in visualization
+          div.addEventListener('mouseenter', () => {
+            const { nodeCircle, rangeCircle } = nodeElementsMap[n.name];
+            nodeCircle.classList.add('highlight-node');
+            rangeCircle.classList.add('highlight-range');
+          });
+          div.addEventListener('mouseleave', () => {
+            const { nodeCircle, rangeCircle } = nodeElementsMap[n.name];
+            nodeCircle.classList.remove('highlight-node');
+            rangeCircle.classList.remove('highlight-range');
+          });
+
           list.appendChild(div);
         });
       }
+
 
       socket.on('connect', () => console.log(`${Date.now()} connected to server`));
       socket.on('disconnect', () => console.log(`${Date.now()} disconnected from the server`));
