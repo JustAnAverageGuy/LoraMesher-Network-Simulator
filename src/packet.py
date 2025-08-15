@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+
+from .utils import calculate_snr_rssi
 from .constants import BROADCAST_ADDR, PacketType
 
 
@@ -39,19 +41,25 @@ class RoutingTable:
     def __init__(self, name: str) -> None:
         self.routing_table = {}
         self.name = name
-    def add_route(self, dst: str, via: str, metric: int) -> bool:
+    def add_route(self, dst: str, via: str, metric: int, dist: float) -> bool:
         "return true if new route is added"
         if dst == self.name: return False
+        rssi, snr = calculate_snr_rssi(dist)
         if dst not in self.routing_table:
             self.routing_table[dst] = {
                 "metric": metric,
                 "via": via,
+                "rssi": rssi,
+                "snr": snr,
             }
         else:
-            if (self.routing_table[dst]["metric"] < metric): return False # can be less than equal to or not
+            if (self.routing_table[dst]["metric"] < metric or (self.routing_table[dst]["metric"] == metric and snr <= self.routing_table[dst]['snr'])): return False # can be less than equal to or not
+            
             self.routing_table[dst] = {
                 "metric": metric,
                 "via": via,
+                "rssi": rssi,
+                "snr": snr,
             }
         return True
     def remove_route(self, dst: str):

@@ -83,16 +83,31 @@
             <div class="card-body">
               <form id="control-form">
                 <div class="mb-3">
-                  <label class="form-label">Number of Nodes: <span id='num-nodes-label'>{{n}}</span></label>
-                  <input type="range" class="form-range" id="num-nodes" value="{{n}}" min="1" max="30">
+                  <label class="form-label">Number of Nodes: <span id='num-nodes-label'>{{state.n}}</span></label>
+                  <input type="range" class="form-range" id="num-nodes" value="{{state.n}}" min="1" max="30">
                 </div>
                 <div class="mb-3">
                   <label class="form-label">Connection Range (km)</label>
-                  <input type="number" class="form-control" id="connection-range" value="{{connection_range_km}}" step="0.1">
+                  <input type="number" class="form-control" id="connection-range" value="{{state.connection_range_km}}" step="0.1" readonly disabled>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Spreading Factor (SF)</label>
+                  <select class="form-select" id="sf">
+                    <option value="7" {% if state.sf == 7 %}selected{% endif %}>SF7</option>
+                    <option value="8" {% if state.sf == 8 %}selected{% endif %}>SF8</option>
+                    <option value="9" {% if state.sf == 9 %}selected{% endif %}>SF9</option>
+                    <option value="10" {% if state.sf == 10 %}selected{% endif %}>SF10</option>
+                    <option value="11" {% if state.sf == 11 %}selected{% endif %}>SF11</option>
+                    <option value="12" {% if state.sf == 12 %}selected{% endif %}>SF12</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">TX Power (dBm)</label>
+                  <input type="number" class="form-control" id="tx-power" value="{{state.tx_power_dbm}}" step="1">
                 </div>
                 <div class="mb-3">
                   <label class="form-label">Total Area Length (km)</label>
-                  <input type="number" class="form-control" id="area-length" value="{{size_km}}" step="0.1">
+                  <input type="number" class="form-control" id="area-length" value="{{state.size_km}}" step="0.1">
                 </div>
                 <div class="d-flex gap-2">
                   <button id="update-button" class="btn btn-primary w-100">Update</button>
@@ -138,8 +153,8 @@
       svg.appendChild(nodesGroup);
       const tooltip = document.getElementById('tooltip');
 
-      let SIZE_KM = "{{ size_km }}";
-      let CONNECTION_RANGE_KM = "{{ connection_range_km }}";
+      let SIZE_KM = "{{ state.size_km }}";
+      let CONNECTION_RANGE_KM = "{{ state.connection_range_km }}";
 
       // Controls
       <!-- const slider = document.getElementById('node-slider'); -->
@@ -168,26 +183,36 @@
 
       document.getElementById("reset-button").addEventListener('click', (event) => {
         event.preventDefault();
-        document.getElementById('num-nodes').value = "{{ n }}";
-        document.getElementById('connection-range').value = "{{ connection_range_km }}";
-        document.getElementById('area-length').value = "{{ size_km }}"; 
-        SIZE_KM = "{{ size_km }}";
-        CONNECTION_RANGE_KM = "{{ connection_range_km }}";
+        document.getElementById('num-nodes').value = "{{ state.n }}";
+        document.getElementById('connection-range').value = "{{ state.connection_range_km }}";
+        document.getElementById('area-length').value = "{{ state.size_km }}"; 
+        SIZE_KM = "{{ state.size_km }}";
+        CONNECTION_RANGE_KM = "{{ state.connection_range_km }}";
+        document.getElementById('sf').value = "{{ state.sf }}";
+        document.getElementById('tx-power').value = "{{ state.tx_power_dbm }}";
         socket.emit('reset');
       });
 
       document.getElementById("update-button").addEventListener('click', (event) => {
         event.preventDefault();
         const numNodes = document.getElementById('num-nodes').value;
-        const connectionRange = document.getElementById('connection-range').value;
         const areaLength = document.getElementById('area-length').value;
-        CONNECTION_RANGE_KM = parseInt(connectionRange, 10);
         SIZE_KM = parseInt(areaLength, 10);
+        const sf = document.getElementById('sf').value;
+        const txPower = document.getElementById('tx-power').value;
         socket.emit('update', {
           num_nodes: parseInt(numNodes, 10),
-          connection_range: parseInt(connectionRange, 10),
-          area_length: parseInt(areaLength, 10)
+          area_length: parseInt(areaLength, 10),
+          sf: parseInt(sf, 10),
+          tx_power: parseInt(txPower, 10)
         });
+      });
+
+      socket.on('range_update', (data) => {
+        console.log("Received range update:", data);
+        CONNECTION_RANGE_KM = data.connection_range_km;
+        document.getElementById('connection-range').value = CONNECTION_RANGE_KM;
+        console.log("Connection range updated to:", CONNECTION_RANGE_KM);
       });
 
       function clearSvg() {
@@ -344,12 +369,12 @@
           const table = document.createElement('table');
           table.className = 'routes-table table table-sm';
           const thead = document.createElement('thead');
-          thead.innerHTML = '<tr><th>dst</th><th>via</th><th>metric</th></tr>';
+          thead.innerHTML = '<tr><th>dst</th><th>via</th><th>metric</th><th>rssi</th><th>snr</th></tr>';
           table.appendChild(thead);
           const tbody = document.createElement('tbody');
           n.routes.forEach(r => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td>`;
+            tr.innerHTML = `<td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td><td>${r.rssi.toFixed(2)}</td><td>${r.snr.toFixed(2)}</td>`;
             tbody.appendChild(tr);
           });
           table.appendChild(tbody);
