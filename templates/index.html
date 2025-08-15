@@ -103,7 +103,6 @@
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/socket.io.min.js"></script>
     <script>
       const socket = io();
@@ -157,13 +156,31 @@
         }
         tooltip.innerHTML = html;
         tooltip.style.display = 'block';
-        tooltip.style.left = (evt.offsetX + 10) + 'px';
-        tooltip.style.top = (evt.offsetY + 10) + 'px';
+        positionTooltip(evt);
+      }
+
+      function positionTooltip(evt) {
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const svgRect = svg.getBoundingClientRect();
+
+        let left = evt.clientX - svgRect.left + 10;
+        let top = evt.clientY - svgRect.top + 10;
+
+        // Prevent right overflow
+        if (left + tooltipRect.width > svg.clientWidth) {
+          left = evt.clientX - svgRect.left - tooltipRect.width - 10;
+        }
+        // Prevent bottom overflow
+        if (top + tooltipRect.height > svg.clientHeight) {
+          top = evt.clientY - svgRect.top - tooltipRect.height - 10;
+        }
+
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
       }
 
       function moveTooltip(evt) {
-        tooltip.style.left = (evt.offsetX + 10) + 'px';
-        tooltip.style.top = (evt.offsetY + 10) + 'px';
+        positionTooltip(evt);
       }
 
       function hideTooltip() {
@@ -268,6 +285,7 @@
       }
 
       // Click to add node
+
       svg.addEventListener('click', function (evt) {
         if (evt.target.classList.contains('node')) return;
         const rect = svg.getBoundingClientRect();
@@ -286,5 +304,6 @@
       socket.on('connect', () => console.log('Connected to server'));
       socket.on('snapshot', data => render(data.nodes));
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
   </body>
 </html>
