@@ -36,16 +36,34 @@ class Node:
 
     def process_route(self, src: str, routes: Routes):
         is_routing_table_updated = False
+        src_position = None
+        if self.all_nodes is not None:
+            src_position = next(
+                (node.position for node in self.all_nodes if node.name == src), None
+            )
+        dist = 0.0
+        if src_position is not None:
+            dist = sum(
+                (x - y) ** 2 for x, y in zip(self.position, src_position)
+            ) ** 0.5
         is_routing_table_updated |= self.routes.add_route(
             dst=src,
             via=src,
             metric=1,
+            dist=dist,
         )
         for node, route_info in routes.routes.items():
+            node_position = next(
+                (n.position for n in self.all_nodes if n.name == src), None
+            ) if self.all_nodes is not None else None
+            dist = sum(
+                (x - y) ** 2 for x, y in zip(self.position, node_position)
+            ) ** 0.5 if node_position is not None else 0.0
             is_routing_table_updated |= self.routes.add_route(
                 dst=node,
                 via=src,
                 metric=route_info.metric + 1,
+                dist=dist,
             )
 
         # print(self.routes)

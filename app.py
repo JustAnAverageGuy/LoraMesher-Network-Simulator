@@ -10,10 +10,12 @@ import time
 # blocking. Example below assumes you can `from main import all_nodes`.
 
 from src.node import Node
-from src.constants import CONNECTION_RANGE_KM, SIZE_KM, N
-from src.main import create_simulation
+from src.constants import CONNECTION_RANGE_KM, SIZE_KM, N, SF, TX_POWER_DBM
+from src.main import Context, create_simulation
+from src.utils import lora_max_range
 
-all_nodes = create_simulation()
+context = Context()
+all_nodes = create_simulation(context=context)
 print("nodes created", flush=True)
 
 
@@ -44,11 +46,15 @@ def snapshot_nodes():
             if isinstance(info, dict):
                 via = info.get("via")
                 metric = info.get("metric")
+                rssi = info.get("rssi")
+                snr = info.get("snr")
             else:
                 # try attribute access
                 via = getattr(info, "via", None)
                 metric = getattr(info, "metric", None)
-            routes.append({"dst": dst, "via": via, "metric": metric})
+                rssi = getattr(info, "rssi", None)
+                snr = getattr(info, "snr", None)
+            routes.append({"dst": dst, "via": via, "metric": metric, "rssi": rssi, "snr": snr})
 
         nodes.append(
             {
@@ -70,7 +76,9 @@ def add_new_node(position=None):
     all_nodes.append(
         Node(
             name=f"[node-{len(all_nodes)}]",
-            position=position if position else (0, 0)
+            position=position if position else (0, 0),
+            connection_range=context.connection_range_km,
+            size_km=context.size_km,
         )
     )
     for node in all_nodes:
@@ -89,10 +97,9 @@ def background_emitter():
 @app.route("/")
 def index():
     """Render the main index page."""
-    size_km = SIZE_KM
-    connection_range_km = CONNECTION_RANGE_KM
-    n = N
-    return render_template("index.html", size_km=size_km, connection_range_km=connection_range_km, n=n)
+
+    context.connection_range_km = lora_max_range(tx_power_dbm=context.tx_power_dbm, sf=context.sf) / 1000
+    return render_template("index.html", state=context)
 
 
 @socketio.on("connect")
@@ -102,8 +109,9 @@ def on_connect():
 @socketio.on('restart')
 def on_restart():
     """Handle restart request from the client."""
-    global all_nodes
-    all_nodes = create_simulation()
+    global all_nodes, context
+    context = Context()
+    all_nodes = create_simulation(context=context)
     nodes = snapshot_nodes()
     socketio.emit("snapshot", {"nodes": nodes})
     # raise NotImplementedError('IMPLEMENT THIS')
@@ -115,17 +123,28 @@ def on_update(data):
     global all_nodes
     num_nodes = data.get("num_nodes", len(all_nodes))
     area_length = data.get("area_length", SIZE_KM)
-    connection_range = data.get("connection_range", CONNECTION_RANGE_KM)
+    sf = data.get("sf", SF)
+    tx_power = data.get("tx_power", TX_POWER_DBM)
     if all_nodes is not None:
         # Clear existing nodes if any
         all_nodes.clear()
+    context.n = num_nodes
+    context.size_km = area_length
+    context.sf = sf
+    context.tx_power_dbm = tx_power
+    context.connection_range_km = lora_max_range(tx_power_dbm=tx_power, sf=sf) / 1000
     all_nodes = create_simulation(
-        num_nodes=num_nodes,
-        area_length=area_length,
-        connection_range=connection_range,
+        context=context
     )
+    print(f"Updated connection range: {context.connection_range_km} km", flush=True)
+    socketio.emit("range_update", {
+        "connection_range_km": context.connection_range_km,
+    })
+
     nodes = snapshot_nodes()
     socketio.emit("snapshot", {"nodes": nodes})
+
+
     print("Updated nodes and emitted snapshot", flush=True)
     
 @socketio.on("add_node")
