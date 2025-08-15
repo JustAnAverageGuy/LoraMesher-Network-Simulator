@@ -4,7 +4,7 @@ import sys
 N                   = 10
 SIZE_KM             = 10
 CONNECTION_RANGE_KM = 3
-HELLO_TIME_SECS     = 10
+HELLO_TIME_SECS     = 2
 BROADCAST_ADDR      = 'FFFF'
 
 DEBUG = False

@@ -99,14 +99,14 @@ def index():
 def on_connect():
     print("Client connected", flush=True)
 
-@socketio.on('restart')
-def on_restart():
-    """Handle restart request from the client."""
+@socketio.on('reset')
+def on_reset():
+    """Handle reset request from the client."""
     global all_nodes
     for node in all_nodes:
         # node.all_nodes = None
         node.timer_handle.cancel()
-    all_nodes = create_simulation(data['N'])
+    all_nodes = create_simulation()
     nodes = snapshot_nodes()
     socketio.emit("snapshot", {"nodes": nodes})
     # raise NotImplementedError('IMPLEMENT THIS')
