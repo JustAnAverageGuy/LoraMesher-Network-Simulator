@@ -274,7 +274,9 @@
         const screenPos = nodes.map(n => ({
           name: n.name,
           x: (n.x / SIZE_KM) * width,
-          y: (n.y / SIZE_KM) * height
+          y: (n.y / SIZE_KM) * height,
+          actualX: n.x,
+          actualY: n.y
         }));
 
         const rScreen = (CONNECTION_RANGE_KM / SIZE_KM) * Math.min(width, height);
@@ -284,10 +286,10 @@
         // Connections
         for (let i = 0; i < screenPos.length; i++) {
           for (let j = i + 1; j < screenPos.length; j++) {
-            const dx = screenPos[i].x - screenPos[j].x;
-            const dy = screenPos[i].y - screenPos[j].y;
+            const dx = screenPos[i].actualX - screenPos[j].actualX;
+            const dy = screenPos[i].actualY - screenPos[j].actualY;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist <= rScreen) {
+            if (dist <= CONNECTION_RANGE_KM) {
               const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
               line.setAttribute('x1', screenPos[i].x);
               line.setAttribute('y1', screenPos[i].y);
