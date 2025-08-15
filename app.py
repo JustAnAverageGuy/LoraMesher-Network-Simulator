@@ -82,7 +82,7 @@ def background_emitter():
         nodes = snapshot_nodes()
         socketio.emit("snapshot", {"nodes": nodes})
         # print(f'snapshot {nodes = }')
-        print("EMITTED SNAPSHOT", flush=True)
+        # print("EMITTED SNAPSHOT", flush=True)
         socketio.sleep(2)
 
 
@@ -103,7 +103,10 @@ def on_connect():
 def on_restart():
     """Handle restart request from the client."""
     global all_nodes
-    all_nodes = create_simulation()
+    for node in all_nodes:
+        # node.all_nodes = None
+        node.timer_handle.cancel()
+    all_nodes = create_simulation(data['N'])
     nodes = snapshot_nodes()
     socketio.emit("snapshot", {"nodes": nodes})
     # raise NotImplementedError('IMPLEMENT THIS')
