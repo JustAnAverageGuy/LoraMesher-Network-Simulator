@@ -2,8 +2,8 @@ from random import random
 import sys
 from threading import Timer
 
-from .packet import Packet, RouteInfo, Routes, RoutingPacket, RoutingTable
-from .constants import CONNECTION_RANGE_KM, DEBUG, HELLO_TIME_SECS, SIZE_KM, PacketType, Role
+from .packet import DataPacket, Packet, RouteInfo, Routes, RoutingPacket, RoutingTable
+from .constants import CONNECTION_RANGE_KM, DEBUG, HELLO_TIME_SECS, SIZE_KM, PacketType, Role, DATA_TIME_SECS
 
 
 class Node:
@@ -34,9 +34,14 @@ class Node:
         self.timer_handle.daemon = True
         self.timer_handle.start()
 
+        if self.role == Role.SENSOR:
+            self.timer_handle_data = Timer(DATA_TIME_SECS, self.broadcast_data)
+            self.timer_handle_data.daemon = True
+            self.timer_handle_data.start()
 
 
-    def process_route(self, src: str, routes: Routes):
+
+    def process_route(self, src: str, routes: Routes, role: Role = Role.NORMAL):
         is_routing_table_updated = False
         src_position = None
         if self.all_nodes is not None:
@@ -53,6 +58,7 @@ class Node:
             via=src,
             metric=1,
             dist=dist,
+            role=role,
         )
         for node, route_info in routes.routes.items():
             node_position = next(
@@ -66,6 +72,7 @@ class Node:
                 via=src,
                 metric=route_info.metric + 1,
                 dist=dist,
+                role=route_info.role,
             )
 
         # print(self.routes)
@@ -76,9 +83,24 @@ class Node:
     def receive(self, message: Packet):
         if DEBUG: print(f"{self.name} received {message}")
         if message.type == PacketType.ROUTING:
-            self.process_route(message.src, message.routes)  # pyright: ignore[reportAttributeAccessIssue]
+            self.process_route(message.src, message.routes, message.role)  # pyright: ignore[reportAttributeAccessIssue]
         elif message.type == PacketType.DATA:
-            raise NotImplementedError("fu")
+            self.process_data(message) # pyright: ignore[reportArgumentType]
+
+    def process_data(self, message: DataPacket):
+        if message.dst != self.name and message.via != self.name:
+            print(f"{self.name} received data packet but not the destination or via, ignoring")
+            return
+        if message.dst != self.name and message.via == self.name:
+            print(f"{self.name} received data packet, forwarding to {message.dst}")
+            via = self.routes.routing_table.get(message.dst, {}).get("via", self.name)
+            if via is None:
+                print(f"{self.name} has no route to {message.dst}, dropping packet")
+                return
+            message.via = via
+            self.broadcast(message)
+            return
+        print(f"{self.name} received data packet, processing content: {message.content}")
 
     def broadcast(self, message: Packet):
         if self.all_nodes is None:
@@ -88,16 +110,45 @@ class Node:
                 continue
             node.receive(message)
         return
+    
+    def broadcast_data(self, content: str = "Hello from Node"):
+        closest_gateway_in_routing_table = None
+        sorted_routes = sorted(
+            self.routes.routing_table.items(),
+            key=lambda item: (item[1]["metric"], -item[1]["snr"])
+        )
+        for node, route_info in sorted_routes:
+            if route_info["role"] == Role.GATEWAY:
+                closest_gateway_in_routing_table = node
+                break
+        if closest_gateway_in_routing_table is not None:
+            via = self.routes.routing_table.get(closest_gateway_in_routing_table, {}).get("via", self.name)
+            self.broadcast(
+                DataPacket(
+                    src=self.name,
+                    dst=closest_gateway_in_routing_table,
+                    via=via,
+                    content=content,
+                )
+            )
+        # if DEBUG: 
+            print(f"{self}: Sent Data to {closest_gateway_in_routing_table} with content: {content}")
+
+        if self.timer_handle_data is not None:
+            self.timer_handle_data.cancel()
+        self.timer_handle_data = Timer(DATA_TIME_SECS, self.broadcast_data, args=(content,))
+        self.timer_handle_data.daemon = True
+        self.timer_handle_data.start()
 
     def broadcast_routing(self):
         routing_packet = Routes(
             routes={
-                neighbour: RouteInfo(metric=metric_via["metric"])
+                neighbour: RouteInfo(metric=metric_via["metric"], role=metric_via["role"])
                 for neighbour, metric_via in self.routes.routing_table.items()
             }
         )
 
-        self.broadcast(RoutingPacket(src=self.name, routes=routing_packet))
+        self.broadcast(RoutingPacket(src=self.name, routes=routing_packet, role=self.role))
         if DEBUG: print(f"{self}: Sent Routing Info")
         if self.timer_handle is not None: self.timer_handle.cancel()
         self.timer_handle = Timer(HELLO_TIME_SECS, self.broadcast_routing)

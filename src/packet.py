@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from .utils import calculate_snr_rssi
-from .constants import BROADCAST_ADDR, PacketType
+from .constants import BROADCAST_ADDR, PacketType, Role
 
 
 class Packet:
@@ -22,9 +22,10 @@ class DataPacket(Packet):
         return f'{base_info} Content: {self.content}'
 
 class RoutingPacket(Packet):
-    def __init__(self, src: str, routes: 'Routes') -> None:
+    def __init__(self, src: str, routes: 'Routes', role: Role = Role.NORMAL) -> None:
         super().__init__(src, BROADCAST_ADDR, PacketType.ROUTING)
         self.routes = routes
+        self.role = role
     def __str__(self) -> str:
         base_info =  super().__str__()
         return f'{base_info} Routes: {self.src} {str(self.routes)}'
@@ -32,6 +33,7 @@ class RoutingPacket(Packet):
 @dataclass
 class RouteInfo:
     metric: int
+    role: Role = Role.NORMAL
 
 @dataclass
 class Routes:
@@ -41,7 +43,7 @@ class RoutingTable:
     def __init__(self, name: str) -> None:
         self.routing_table = {}
         self.name = name
-    def add_route(self, dst: str, via: str, metric: int, dist: float) -> bool:
+    def add_route(self, dst: str, via: str, metric: int, dist: float, role:Role) -> bool:
         "return true if new route is added"
         if dst == self.name: return False
         rssi, snr = calculate_snr_rssi(dist)
@@ -51,6 +53,7 @@ class RoutingTable:
                 "via": via,
                 "rssi": rssi,
                 "snr": snr,
+                "role": role,
             }
         else:
             if (self.routing_table[dst]["metric"] < metric or (self.routing_table[dst]["metric"] == metric and snr <= self.routing_table[dst]['snr'])): return False # can be less than equal to or not
@@ -60,6 +63,7 @@ class RoutingTable:
                 "via": via,
                 "rssi": rssi,
                 "snr": snr,
+                "role": role,
             }
         return True
     def remove_route(self, dst: str):
