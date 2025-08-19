@@ -10,7 +10,7 @@ import time
 # blocking. Example below assumes you can `from main import all_nodes`.
 
 from src.node import Node
-from src.constants import CONNECTION_RANGE_KM, SIZE_KM, N, SF, TX_POWER_DBM
+from src.constants import CONNECTION_RANGE_KM, SIZE_KM, N, SF, TX_POWER_DBM, Role
 from src.main import Context, create_simulation
 from src.utils import lora_max_range
 
@@ -48,13 +48,15 @@ def snapshot_nodes():
                 metric = info.get("metric")
                 rssi = info.get("rssi")
                 snr = info.get("snr")
+                role = info.get("role", Role.NORMAL)
             else:
                 # try attribute access
                 via = getattr(info, "via", None)
                 metric = getattr(info, "metric", None)
                 rssi = getattr(info, "rssi", None)
                 snr = getattr(info, "snr", None)
-            routes.append({"dst": dst, "via": via, "metric": metric, "rssi": rssi, "snr": snr})
+                role = getattr(info, "role", Role.NORMAL)
+            routes.append({"dst": dst, "via": via, "metric": metric, "rssi": rssi, "snr": snr, "role": getattr(role, "name", str(role))})
 
         nodes.append(
             {
@@ -111,6 +113,7 @@ def on_reset():
     """Handle reset request from the client."""
     global all_nodes, context
     context = Context()
+    all_nodes.clear()
     all_nodes = create_simulation(context=context)
     nodes = snapshot_nodes()
     socketio.emit("snapshot", {"nodes": nodes})

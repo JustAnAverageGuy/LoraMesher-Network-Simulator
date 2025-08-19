@@ -6,12 +6,14 @@ from .node import Node
 from .utils import lora_max_range
 
 def generate_nodes(n, area_length, connection_range, layout='linear'):
+    """Generate a list of nodes with given parameters."""
     if layout == 'linear':
-        nodes = [Node(f"[node-{i}]", position=(i*connection_range*0.99+10, area_length//2), connection_range=connection_range) for i in range(n)]
+        nodes = [Node(f"[node-{i}]", position=(i*connection_range*0.99+10, area_length//2), connection_range=connection_range) for i in range(1, n)]
     else: 
-        nodes = [Node(f"[node-{i}]", connection_range=connection_range, size_km=area_length ) for i in range(n)]
+        nodes = [Node(f"[node-{i}]", connection_range=connection_range, size_km=area_length, role=Role.SENSOR) if i == 0
+                  else Node(f"[node-{i}]", connection_range=connection_range, size_km=area_length, role = Role.GATEWAY) if i == n-1
+                    else Node(f"[node-{i}]", connection_range=connection_range, size_km=area_length) for i in range(n)]
 
-    nodes[-1].role = Role.GATEWAY
 
     for node in nodes:
         node.all_nodes = nodes

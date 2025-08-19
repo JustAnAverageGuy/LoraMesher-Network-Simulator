@@ -223,9 +223,9 @@
         let html = `<strong>${node.name}</strong> (${node.role})<br>`;
         html += `Position: (${node.x.toFixed(2)}, ${node.y.toFixed(2)})<br>`;
         if (node.routes.length > 0) {
-          html += '<table><thead><tr><th>dst</th><th>via</th><th>metric</th></tr></thead><tbody>';
+          html += '<table><thead><tr><th>dst</th><th>via</th><th>metric</th><th>role</th></tr></thead><tbody>';
           node.routes.forEach(r => {
-            html += `<tr><td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td></tr>`;
+            html += `<tr><td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td><td>${r.role}</td></tr>`;
           });
           html += '</tbody></table>';
         } else {
@@ -324,7 +324,8 @@
           nodeC.setAttribute('cy', cy);
           nodeC.setAttribute('r', 6);
           const isGateway = n.role == 'GATEWAY';
-          nodeC.setAttribute('fill', isGateway ? 'red' : '#007bff');
+          const isSensor = n.role == 'SENSOR';
+          nodeC.setAttribute('fill', isGateway ? 'red' : isSensor ? 'purple' : '#007bff');
           nodeC.classList.add('node');
           nodeC.dataset.name = n.name;
 
@@ -371,12 +372,12 @@
           const table = document.createElement('table');
           table.className = 'routes-table table table-sm';
           const thead = document.createElement('thead');
-          thead.innerHTML = '<tr><th>dst</th><th>via</th><th>metric</th><th>rssi</th><th>snr</th></tr>';
+          thead.innerHTML = '<tr><th>dst</th><th>via</th><th>metric</th><th>rssi</th><th>snr</th><th>role</th></tr>';
           table.appendChild(thead);
           const tbody = document.createElement('tbody');
           n.routes.forEach(r => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td><td>${r.rssi.toFixed(2)}</td><td>${r.snr.toFixed(2)}</td>`;
+            tr.innerHTML = `<td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td><td>${r.rssi.toFixed(2)}</td><td>${r.snr.toFixed(2)}</td><td>${r.role}</td>`;
             tbody.appendChild(tr);
           });
           table.appendChild(tbody);

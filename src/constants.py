@@ -13,6 +13,8 @@ BANDWIDTH_HZ       = 125_000
 NOISE_FIGURE_DB    = 6.0
 PATH_LOSS_EXPONENT = 2.7
 
+DATA_TIME_SECS = 5
+
 DEBUG = False
 
 class PacketType(Enum):
