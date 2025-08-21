@@ -65,6 +65,7 @@ def snapshot_nodes():
                 "y": node.position[1],
                 "role": getattr(node.role, "name", str(node.role)),
                 "routes": routes,
+                "stats": node.stats,
             }
         )
         # print(f'{nodes = }', flush=True)

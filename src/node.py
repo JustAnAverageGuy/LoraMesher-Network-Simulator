@@ -30,6 +30,15 @@ class Node:
 
         self.routes = RoutingTable(self.name)
 
+        self.stats = {
+            "routing_sent": 0,
+            "routing_received": 0,
+            "data_sent": 0,
+            "data_received": 0,
+            "data_forwarded": 0,
+            "dropped": 0,
+        }
+
         self.timer_handle = Timer(HELLO_TIME_SECS, self.broadcast_routing)
         self.timer_handle.daemon = True
         self.timer_handle.start()
@@ -42,6 +51,7 @@ class Node:
 
 
     def process_route(self, src: str, routes: Routes, role: Role = Role.NORMAL):
+        self.stats["routing_received"] += 1
         is_routing_table_updated = False
         src_position = None
         if self.all_nodes is not None:
@@ -78,7 +88,7 @@ class Node:
         # print(self.routes)
 
         # TODO: alternate version here
-        # if is_routing_table_updated: self.broadcast_routing()
+        if is_routing_table_updated: self.broadcast_routing()
 
     def receive(self, message: Packet):
         if DEBUG: print(f"{self.name} received {message}")
@@ -88,11 +98,14 @@ class Node:
             self.process_data(message) # pyright: ignore[reportArgumentType]
 
     def process_data(self, message: DataPacket):
+        self.stats["data_received"] += 1
         if message.dst != self.name and message.via != self.name:
+            self.stats["dropped"] += 1
             print(f"{self.name} received data packet but not the destination or via, ignoring")
             return
         if message.dst != self.name and message.via == self.name:
             print(f"{self.name} received data packet, forwarding to {message.dst}")
+            self.stats["data_forwarded"] += 1
             via = self.routes.routing_table.get(message.dst, {}).get("via", self.name)
             if via is None:
                 print(f"{self.name} has no route to {message.dst}, dropping packet")
@@ -123,6 +136,7 @@ class Node:
                 break
         if closest_gateway_in_routing_table is not None:
             via = self.routes.routing_table.get(closest_gateway_in_routing_table, {}).get("via", self.name)
+            self.stats["data_sent"] += 1
             self.broadcast(
                 DataPacket(
                     src=self.name,
@@ -148,6 +162,7 @@ class Node:
             }
         )
 
+        self.stats["routing_sent"] += 1
         self.broadcast(RoutingPacket(src=self.name, routes=routing_packet, role=self.role))
         if DEBUG: print(f"{self}: Sent Routing Info")
         if self.timer_handle is not None: self.timer_handle.cancel()

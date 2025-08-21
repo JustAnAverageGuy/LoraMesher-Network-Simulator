@@ -222,6 +222,13 @@
       function showTooltip(evt, node) {
         let html = `<strong>${node.name}</strong> (${node.role})<br>`;
         html += `Position: (${node.x.toFixed(2)}, ${node.y.toFixed(2)})<br>`;
+        if (node.stats) {
+          html += `<div><strong>Stats:</strong><br>`;
+          for (const [key, value] of Object.entries(node.stats)) {
+            html += `${key}: ${value}<br>`;
+          }
+          html += `</div>`;
+        }
         if (node.routes.length > 0) {
           html += '<table><thead><tr><th>dst</th><th>via</th><th>metric</th><th>role</th></tr></thead><tbody>';
           node.routes.forEach(r => {
