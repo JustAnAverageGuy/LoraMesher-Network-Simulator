@@ -1,12 +1,24 @@
 from random import random
 import sys
 from threading import Timer
+from datetime import datetime
 
 from .packet import DataPacket, Packet, RouteInfo, Routes, RoutingPacket, RoutingTable
-from .constants import CONNECTION_RANGE_KM, DEBUG, HELLO_TIME_SECS, SIZE_KM, PacketType, Role, DATA_TIME_SECS
+from .constants import CONNECTION_RANGE_KM, DEBUG, HELLO_TIME_SECS, SIZE_KM, PacketType, Role, DATA_TIME_SECS, INITIAL_SETUP_TIME_SECS
 
 
 class Node:
+    _stopped = False
+    _total_messages_sent = 0
+    _total_messages_received = 0
+    _average_time_to_deliver = 0.0
+    _total_routes_broadcasted = 0
+    _average_new_node_discovery_time = 0.0
+    _new_nodes_added = 0    
+    _reroute_on_new_node = False
+    _data_interval = DATA_TIME_SECS
+    _routing_interval = HELLO_TIME_SECS
+    _all_nodes: list["Node"] = []
     def __init__(
         self,
         name: str,
@@ -25,7 +37,6 @@ class Node:
             )
 
         self.position = position
-        self.all_nodes: None | list["Node"] = None
         self.connection_range = connection_range
 
         self.routes = RoutingTable(self.name)
@@ -38,25 +49,21 @@ class Node:
             "data_forwarded": 0,
             "dropped": 0,
         }
-
-        self.timer_handle = Timer(HELLO_TIME_SECS, self.broadcast_routing)
+        self.timer_handle = Timer(INITIAL_SETUP_TIME_SECS + random(), self.broadcast_routing)
         self.timer_handle.daemon = True
         self.timer_handle.start()
-
+        self.timer_handle_data = None
         if self.role == Role.SENSOR:
-            self.timer_handle_data = Timer(DATA_TIME_SECS, self.broadcast_data)
+            self.timer_handle_data = Timer(INITIAL_SETUP_TIME_SECS + random(), self.broadcast_data)
             self.timer_handle_data.daemon = True
             self.timer_handle_data.start()
-
-
-
     def process_route(self, src: str, routes: Routes, role: Role = Role.NORMAL):
         self.stats["routing_received"] += 1
         is_routing_table_updated = False
         src_position = None
-        if self.all_nodes is not None:
+        if Node._all_nodes is not None:
             src_position = next(
-                (node.position for node in self.all_nodes if node.name == src), None
+                (node.position for node in Node._all_nodes if node.name == src), None
             )
         dist = 0.0
         if src_position is not None:
@@ -72,8 +79,8 @@ class Node:
         )
         for node, route_info in routes.routes.items():
             node_position = next(
-                (n.position for n in self.all_nodes if n.name == src), None
-            ) if self.all_nodes is not None else None
+                (n.position for n in Node._all_nodes if n.name == src), None
+            ) if Node._all_nodes is not None else None
             dist = sum(
                 (x - y) ** 2 for x, y in zip(self.position, node_position)
             ) ** 0.5 if node_position is not None else 0.0
@@ -88,7 +95,8 @@ class Node:
         # print(self.routes)
 
         # TODO: alternate version here
-        if is_routing_table_updated: self.broadcast_routing()
+        if Node._reroute_on_new_node and is_routing_table_updated:
+            self.broadcast_routing()
 
     def receive(self, message: Packet):
         if DEBUG: print(f"{self.name} received {message}")
@@ -99,6 +107,7 @@ class Node:
 
     def process_data(self, message: DataPacket):
         self.stats["data_received"] += 1
+        receive_time = datetime.now()
         if message.dst != self.name and message.via != self.name:
             self.stats["dropped"] += 1
             print(f"{self.name} received data packet but not the destination or via, ignoring")
@@ -113,12 +122,15 @@ class Node:
             message.via = via
             self.broadcast(message)
             return
+        Node._total_messages_received += 1
+        Node._average_time_to_deliver += ((receive_time - message.timestamp).total_seconds() - Node._average_time_to_deliver) / Node._total_messages_received if message.timestamp is not None else 0.0
         print(f"{self.name} received data packet, processing content: {message.content}")
 
     def broadcast(self, message: Packet):
-        if self.all_nodes is None:
-            raise ValueError("All nodes is not initialized yet")
-        for node in self.all_nodes:
+        if Node._all_nodes is None:
+            print(f"{self.name} has no nodes to broadcast to")
+            return
+        for node in Node._all_nodes:
             if not self.can_send(node):
                 continue
             node.receive(message)
@@ -143,16 +155,21 @@ class Node:
                     dst=closest_gateway_in_routing_table,
                     via=via,
                     content=content,
+                    timestamp=datetime.now()
                 )
             )
         # if DEBUG: 
+            print(f"Delay: {Node._data_interval} seconds")
             print(f"{self}: Sent Data to {closest_gateway_in_routing_table} with content: {content}")
+            Node._total_messages_sent += 1
 
         if self.timer_handle_data is not None:
             self.timer_handle_data.cancel()
-        self.timer_handle_data = Timer(DATA_TIME_SECS, self.broadcast_data, args=(content,))
-        self.timer_handle_data.daemon = True
-        self.timer_handle_data.start()
+
+        if not Node._stopped:
+            self.timer_handle_data = Timer(Node._data_interval, self.broadcast_data, args=(content,))
+            self.timer_handle_data.daemon = True
+            self.timer_handle_data.start()
 
     def broadcast_routing(self):
         routing_packet = Routes(
@@ -165,10 +182,12 @@ class Node:
         self.stats["routing_sent"] += 1
         self.broadcast(RoutingPacket(src=self.name, routes=routing_packet, role=self.role))
         if DEBUG: print(f"{self}: Sent Routing Info")
+        Node._total_routes_broadcasted += 1
         if self.timer_handle is not None: self.timer_handle.cancel()
-        self.timer_handle = Timer(HELLO_TIME_SECS, self.broadcast_routing)
-        self.timer_handle.daemon = True
-        self.timer_handle.start()
+        if not Node._stopped:
+            self.timer_handle = Timer(Node._routing_interval, self.broadcast_routing)
+            self.timer_handle.daemon = True
+            self.timer_handle.start()
 
     def can_send(self, other: "Node"):
         if other == self:

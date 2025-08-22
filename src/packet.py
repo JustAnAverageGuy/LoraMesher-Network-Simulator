@@ -13,10 +13,11 @@ class Packet:
         return f'Type: {self.type.name}, Src: {self.src}, Dst: {self.dst}'
 
 class DataPacket(Packet):
-    def __init__(self, src: str, dst: str, via: str, content: str) -> None:
+    def __init__(self, src: str, dst: str, via: str, content: str, timestamp=None) -> None:
         super().__init__(src, dst, PacketType.DATA)
         self.via = via
         self.content = content
+        self.timestamp = timestamp
     def __str__(self) -> str:
         base_info =  super().__str__()
         return f'{base_info} Content: {self.content}'

@@ -106,17 +106,58 @@
                   <input type="number" class="form-control" id="tx-power" value="{{state.tx_power_dbm}}" step="1">
                 </div>
                 <div class="mb-3">
+                  <label class="form-label">
+                    Path Loss Exponent
+                    <input type="number" class="form-control" id="path-loss-exponent" value="{{state.path_loss_exponent}}" step="0.05">
+                  </label>
+                </div>
+                <div class="mb-3">
                   <label class="form-label">Total Area Length (km)</label>
                   <input type="number" class="form-control" id="area-length" value="{{state.size_km}}" step="0.1">
                 </div>
-                <div class="d-flex gap-2">
-                  <button id="update-button" class="btn btn-primary w-100">Update</button>
-                  <button id="reset-button" class="btn btn-danger w-100">Reset</button>
+                <div class="mb-3">
+                  <label class="form-label">
+                    Routing Timer Interval (s)
+                  </label>
+                  <input type="number" class="form-control" id="routing-interval" value="{{state.routing_interval}}" step="1">
                 </div>
-              </form>
-            </div>
+                <div class="mb-3">
+                  <label class="form-label">
+                    Data Message Interval (s)
+                  </label>
+                  <input type="number" class="form-control" id="data-interval" value="{{state.data_interval}}" step="1">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">
+                    ReRoute on New Node?
+                  </label>
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="reroute-switch" {% if state.reroute_on_new_node %}checked{% endif %}>
+                    <label class="form-check-check-label" for="reroute-switch">{{ 'Yes' if state.reroute_on_new_node else 'No' }}</label>
+                  </div>
+                </div>
+              <!-- duration of simulation and interval for new node -->
+              <div class="mb-3">
+                <label class="form-label">Simulation Duration (s)</label>
+                <input type="number" class="form-control" id="sim-duration" value="1800" step="10">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">New Node Addition Interval (s)</label>
+                <input type="number" class="form-control" id="new-node-interval" value="60" step="10">
+              </div>
+              <!-- check for simulation -->
+               <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="enable-simulation">
+                <label class="form-check-check-label" for="enable-simulation">Enable New Node Addition Simulation</label>
+              </div>
+              <div class="d-flex gap-2">
+                <button id="update-button" class="btn btn-primary w-100">Update</button>
+                <button id="reset-button" class="btn btn-danger w-100">Reset</button>
+              </div>
+            </form>
           </div>
         </div>
+      </div>
 
         <div class="col-lg-9">
           <div class="row g-3">
@@ -144,6 +185,34 @@
         </div>
       </div>
     </div>
+    <!-- allover statistics -->
+    <div class="container">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header fw-semibold">Simulation Statistics</div>
+        <div class="card-body">
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <strong>Total Messages Sent:</strong> {{ state.total_messages_sent }}
+            </li>
+            <li class="list-group-item">
+              <strong>Total Messages Received:</strong> {{ state.total_messages_received }}
+            </li>
+            <li class="list-group-item">
+              <strong>Average Time to Deliver (s):</strong> {{ state.average_time_to_deliver }}
+            </li>
+            <li class="list-group-item">
+              <strong>Total Routes Broadcasted:</strong> {{ state.total_routes_broadcasted }}
+            </li>
+            <li class="list-group-item">
+              <strong>Average New Node Discovery Time (s):</strong> {{ state.average_new_node_discovery_time }}
+            </li>
+            <li class="list-group-item">
+              <strong>New Nodes Added:</strong> {{ state.new_nodes_added }}
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
 
     <script src="/static/socket.io.min.js"></script>
     <script>
@@ -156,8 +225,10 @@
       let SIZE_KM = "{{ state.size_km }}";
       let CONNECTION_RANGE_KM = "{{ state.connection_range_km }}";
 
+      document.getElementById('enable-simulation').checked = localStorage.getItem('enableSimulation') === 'true';
+      document.getElementById('sim-duration').value = localStorage.getItem('simDuration') || 1800;
+      document.getElementById('new-node-interval').value = localStorage.getItem('newNodeInterval') || 60;
       // Controls
-      <!-- const slider = document.getElementById('node-slider'); -->
       const slider = document.getElementById('num-nodes');
       const nodeCountLabel = document.getElementById('num-nodes-label');
 
@@ -165,21 +236,21 @@
         nodeCountLabel.textContent = slider.value;
       });
 
-      slider.addEventListener('change', () => {
-        const numNodes = document.getElementById('num-nodes').value;
-        const connectionRange = document.getElementById('connection-range').value;
-        const areaLength = document.getElementById('area-length').value;
-        CONNECTION_RANGE_KM = parseInt(connectionRange, 10);
-        SIZE_KM = parseInt(areaLength, 10);
+      // slider.addEventListener('change', () => {
+      //   const numNodes = document.getElementById('num-nodes').value;
+      //   const connectionRange = document.getElementById('connection-range').value;
+      //   const areaLength = document.getElementById('area-length').value;
+      //   CONNECTION_RANGE_KM = parseInt(connectionRange, 10);
+      //   SIZE_KM = parseInt(areaLength, 10);
 
-        const updatedValues = {
-          num_nodes: parseInt(numNodes, 10),
-          connection_range: parseInt(connectionRange, 10),
-          area_length: parseInt(areaLength, 10)
-        }
-        socket.emit('update', updatedValues);
-        console.log(`Update emitted with updatedValues = `, updatedValues);
-      });
+      //   const updatedValues = {
+      //     num_nodes: parseInt(numNodes, 10),
+      //     connection_range: parseInt(connectionRange, 10),
+      //     area_length: parseInt(areaLength, 10)
+      //   }
+      //   socket.emit('update', updatedValues);
+      //   console.log(`Update emitted with updatedValues = `, updatedValues);
+      // });
 
       document.getElementById("reset-button").addEventListener('click', (event) => {
         event.preventDefault();
@@ -190,7 +261,15 @@
         CONNECTION_RANGE_KM = "{{ state.connection_range_km }}";
         document.getElementById('sf').value = "{{ state.sf }}";
         document.getElementById('tx-power').value = "{{ state.tx_power_dbm }}";
+        document.getElementById('path-loss-exponent').value = "{{ state.path_loss_exponent }}";
         socket.emit('reset');
+        window.location.reload();
+      });
+
+      document.getElementById('reroute-switch').addEventListener('change', (event) => {
+        const reroute = event.target.checked;
+        socket.emit('set_reroute', { reroute_on_new_node: reroute });
+        event.target.nextElementSibling.textContent = reroute ? 'Yes' : 'No';
       });
 
       document.getElementById("update-button").addEventListener('click', (event) => {
@@ -200,12 +279,21 @@
         SIZE_KM = parseInt(areaLength, 10);
         const sf = document.getElementById('sf').value;
         const txPower = document.getElementById('tx-power').value;
+        const pathLossExponent = document.getElementById('path-loss-exponent').value;
+        const routingInterval = document.getElementById('routing-interval').value;
+        const dataInterval = document.getElementById('data-interval').value;
+        const reroute = document.getElementById('reroute-switch').checked;
         socket.emit('update', {
           num_nodes: parseInt(numNodes, 10),
           area_length: parseInt(areaLength, 10),
           sf: parseInt(sf, 10),
-          tx_power: parseInt(txPower, 10)
+          tx_power: parseInt(txPower, 10),
+          path_loss_exp: parseFloat(pathLossExponent),
+          routing_interval: parseInt(routingInterval, 10),
+          data_interval: parseInt(dataInterval, 10),
+          reroute_on_new_node: reroute,
         });
+        window.location.reload();
       });
 
       socket.on('range_update', (data) => {
@@ -223,11 +311,13 @@
         let html = `<strong>${node.name}</strong> (${node.role})<br>`;
         html += `Position: (${node.x.toFixed(2)}, ${node.y.toFixed(2)})<br>`;
         if (node.stats) {
-          html += `<div><strong>Stats:</strong><br>`;
+          html += `<div><strong>Stats:</strong></div>`;
+          html += `<table style="width:100%; border-collapse:collapse; margin-bottom:6px;">`;
+          html += `<tbody>`;
           for (const [key, value] of Object.entries(node.stats)) {
-            html += `${key}: ${value}<br>`;
+            html += `<tr><td style="padding:2px 4px; border:1px solid #ddd;">${key}</td><td style="padding:2px 4px; border:1px solid #ddd;">${value}</td></tr>`;
           }
-          html += `</div>`;
+          html += `</tbody></table>`;
         }
         if (node.routes.length > 0) {
           html += '<table><thead><tr><th>dst</th><th>via</th><th>metric</th><th>role</th></tr></thead><tbody>';
@@ -287,8 +377,6 @@
         }));
 
         const rScreen = (CONNECTION_RANGE_KM / SIZE_KM) * Math.min(width, height);
-
-        console.log("Width:", width, "Height:", height, "Size KM:", SIZE_KM, "Connection Range KM:", CONNECTION_RANGE_KM, "rScreen:", rScreen);
 
         // Connections
         for (let i = 0; i < screenPos.length; i++) {
@@ -432,8 +520,46 @@
         render(data.nodes);
       });
 
-      socket.on('connect', () => console.log('Connected to server'));
-      socket.on('snapshot', data => render(data.nodes));
+      socket.on('statistics', data => {
+        console.log("Statistics update:", data);
+        const stats = document.querySelector('.card-body ul');
+        stats.innerHTML = `
+          <li class="list-group-item"><strong>Total Messages Sent:</strong> ${data.total_messages_sent}</li>
+          <li class="list-group-item"><strong>Total Messages Received:</strong> ${data.total_messages_received}</li>
+          <li class="list-group-item"><strong>Average Time to Deliver (s):</strong> ${data.average_time_to_deliver}</li>
+          <li class="list-group-item"><strong>Total Routes Broadcasted:</strong> ${data.total_routes_broadcasted}</li>
+          <li class="list-group-item"><strong>Average New Node Discovery Time (s):</strong> ${data.average_new_node_discovery_time}</li>
+          <li class="list-group-item"><strong>New Nodes Added:</strong> ${data.new_nodes_added}</li>
+        `;
+      });
+      // till simulation duration fire new node addition event at regular intervals
+
+      document.getElementById('enable-simulation').addEventListener('change', (event) => {
+        localStorage.setItem('enableSimulation', event.target.checked);
+      });
+
+      document.getElementById('sim-duration').addEventListener('change', (event) => {
+        localStorage.setItem('simDuration', event.target.value);
+      });
+
+      document.getElementById('new-node-interval').addEventListener('change', (event) => {
+        localStorage.setItem('newNodeInterval', event.target.value);
+      });
+
+
+      if (document.getElementById('enable-simulation').checked) {
+        console.log("Simulation enabled");
+        const simDuration = parseInt(document.getElementById('sim-duration').value, 10) * 1000;
+        const newNodeInterval = parseInt(document.getElementById('new-node-interval').value, 10) * 1000;
+        const startTime = Date.now();
+        const intervalId = setInterval(() => {
+          if (Date.now() - startTime >= simDuration) {
+            clearInterval(intervalId);
+            return;
+          }
+          socket.emit('add_node', { position: [Math.random() * SIZE_KM, Math.random() * SIZE_KM] });
+        }, newNodeInterval);
+      }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
   </body>
