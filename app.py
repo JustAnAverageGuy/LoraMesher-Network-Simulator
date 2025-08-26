@@ -90,6 +90,7 @@ def add_new_node(position=None):
 def clear_nodes():
     """Clear all nodes from the simulation."""
     global all_nodes
+    print("Clearing all nodes", flush=True)
     Node._stopped = True
     Node._total_messages_sent = 0
     Node._total_messages_received = 0
@@ -97,6 +98,7 @@ def clear_nodes():
     Node._total_routes_broadcasted = 0
     Node._average_new_node_discovery_time = 0.0
     Node._new_nodes_added = 0
+    Node._initial_broadcast_messages_sent = 0
     for node in all_nodes:
         if node.timer_handle is not None:
             node.timer_handle.cancel()
@@ -106,6 +108,7 @@ def clear_nodes():
         except Exception:
             pass
     all_nodes.clear()
+    print(Node._all_nodes, flush=True)
     Node._stopped = False
 
 
@@ -118,6 +121,7 @@ def statistics():
         "total_routes_broadcasted": Node._total_routes_broadcasted,
         "average_new_node_discovery_time": Node._average_new_node_discovery_time,
         "new_nodes_added": Node._new_nodes_added,
+        "initial_broadcast_messages_sent": Node._initial_broadcast_messages_sent,
     }
     return total_stats
 
@@ -229,6 +233,29 @@ def background_route_addition_checker(new_node, new_node_start_time):
 @socketio.on("disconnect")
 def on_disconnect():
     print("Client disconnected", flush=True)
+
+@socketio.on("download_topology")
+def on_download_topology():
+    """Handle topology download request."""
+    nodes = snapshot_nodes()
+    # remove stats and routes for cleaner output
+    for node in nodes:
+        node.pop("stats", None)
+        node.pop("routes", None)
+    socketio.emit("topology_data", {"nodes": nodes})
+    print("Emitted topology data for download", flush=True)
+
+@socketio.on("load_topology")
+def on_load_topology(data):
+    """Handle loading a new topology."""
+    print("Loading topology:", data, flush=True)
+    global all_nodes
+    clear_nodes()
+    nodes_data = data.get("nodes", [])
+    all_nodes = create_simulation(context=context, node_info=nodes_data)
+    nodes = snapshot_nodes()
+    socketio.emit("snapshot", {"nodes": nodes})
+    print("Loaded new topology and emitted snapshot", flush=True)
 
 
 if __name__ == "__main__":

@@ -19,12 +19,25 @@ def generate_nodes(n, area_length, connection_range, layout='linear'):
 
     return nodes
 
-def create_simulation(context:'Context', layout='aandu pandu'):
+def create_simulation(context:'Context', layout='aandu pandu', node_info=None):
     """Create a new simulation with given context parameters."""
     Node._reroute_on_new_node = context.reroute_on_new_node
     Node._data_interval = context.data_interval
     Node._routing_interval = context.routing_interval
     context.connection_range_km = lora_max_range(tx_power_dbm=context.tx_power_dbm, sf=context.sf, path_loss_exp=context.path_loss_exponent) / 1000
+
+    if node_info is not None:
+        context.n = len(node_info)
+        nodes = []
+        for i, info in enumerate(node_info):
+            print(f"Creating node {i} with info: {info}", flush=True)
+            position = (info.get("x", 0), info.get("y", 0))
+            node = Node(f"[node-{i}]", position=position, connection_range=context.connection_range_km, size_km=context.size_km, role=Role[info.get("role", "NORMAL")])
+            nodes.append(node)
+        Node._all_nodes = nodes
+        print(Node._all_nodes, flush=True)
+        return nodes
+
     nodes = generate_nodes(n=context.n, area_length=context.size_km, connection_range=context.connection_range_km, layout=layout)
     return nodes
 

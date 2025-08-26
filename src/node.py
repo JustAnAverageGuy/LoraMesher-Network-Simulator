@@ -18,6 +18,7 @@ class Node:
     _reroute_on_new_node = False
     _data_interval = DATA_TIME_SECS
     _routing_interval = HELLO_TIME_SECS
+    _initial_broadcast_messages_sent = 0
     _all_nodes: list["Node"] = []
     def __init__(
         self,
@@ -138,6 +139,7 @@ class Node:
     
     def broadcast_data(self, content: str = "Hello from Node"):
         closest_gateway_in_routing_table = None
+        Node._total_messages_sent += 1
         sorted_routes = sorted(
             self.routes.routing_table.items(),
             key=lambda item: (item[1]["metric"], -item[1]["snr"])
@@ -161,7 +163,9 @@ class Node:
         # if DEBUG: 
             print(f"Delay: {Node._data_interval} seconds")
             print(f"{self}: Sent Data to {closest_gateway_in_routing_table} with content: {content}")
-            Node._total_messages_sent += 1
+        else:
+            if DEBUG: print(f"{self}: No gateway found in routing table, broadcasting data to all nodes")
+            Node._initial_broadcast_messages_sent += 1
 
         if self.timer_handle_data is not None:
             self.timer_handle_data.cancel()

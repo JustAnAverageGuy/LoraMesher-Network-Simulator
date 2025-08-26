@@ -33,6 +33,21 @@ if (enableSimulationCheckBox.checked) {
     }
     socket.emit("add_node", { position: [Math.random() * SIZE_KM, Math.random() * SIZE_KM] });
   }, newNodeInterval);
+
+  // start a timer on screen to show remaining time
+  const timerSpan = document.getElementById("timer");
+  let remainingTime = simDuration / 1000;
+  timerSpan.textContent = `Time Remaining: ${remainingTime}s`;
+  const timerId = setInterval(() => {
+    remainingTime -= 1;
+    if (remainingTime <= 0) {
+      clearInterval(timerId);
+      timerSpan.textContent = "Simulation Ended";
+      socket.disconnect(); // Disconnect from server when timer completes
+    } else {
+      timerSpan.textContent = `Time Remaining: ${remainingTime}s`;
+    }
+  }, 1000);
 }
 
 // TOOLTIP HANDLING{{{
@@ -353,6 +368,7 @@ socket.on("statistics", data => {
   <li class="list-group-item"><strong>Total Routes Broadcasted:</strong> ${data.total_routes_broadcasted}</li>
   <li class="list-group-item"><strong>Average New Node Discovery Time (s):</strong> ${data.average_new_node_discovery_time}</li>
   <li class="list-group-item"><strong>New Nodes Added:</strong> ${data.new_nodes_added}</li>
+  <li class="list-group-item"><strong>Initial Broadcast Messages Sent:</strong> ${data.initial_broadcast_messages_sent}</li>
 `;
 });
 // }}}
@@ -368,6 +384,55 @@ simulationDurationInput.addEventListener("change", event => {
 newNodeAdditionIntervalInput.addEventListener("change", event => {
   localStorage.setItem("newNodeInterval", event.target.value);
 });
+
+const downloadBtn = document.getElementById("download-btn");
+downloadBtn.addEventListener("click", () => {
+  // create a txt file of the format node_name,x,y,role
+  socket.emit("download_topology");
+  socket.once("topology_data", data => {
+    console.table(data['nodes']);
+    const textData = "name,x,y,role\n" + data['nodes'].map(n => `${n.name},${n.x},${n.y},${n.role}`).join("\n");
+    const blob = new Blob([textData], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "topology.tlg";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+});
+
+const uploadBtn = document.getElementById("upload-btn");
+uploadBtn.addEventListener("click", () => {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".tlg,.txt";
+  input.click();
+  input.addEventListener("change", () => {
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = e => {
+      const content = e.target.result;
+      // parse the content
+      const lines = content.split("\n").filter(line => line.trim() !== "");
+      const nodes = [];
+      for (let i = 1; i < lines.length; i++) {
+        const [name, x, y, role] = lines[i].split(",");
+        if (name && x && y && role) {
+          nodes.push({ name: name.trim(), x: parseFloat(x), y: parseFloat(y), role: role.trim() });
+        }
+      }
+      console.log("Parsed nodes from file:", nodes);
+      socket.emit("load_topology", { nodes });
+      window.location.reload();
+    };
+    reader.readAsText(file);
+  });
+});
+
+
 
 // }}}
 

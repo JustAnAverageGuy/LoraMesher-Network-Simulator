@@ -4,7 +4,7 @@ import sys
 N                   = 10
 SIZE_KM             = 10
 CONNECTION_RANGE_KM = 3
-HELLO_TIME_SECS     = 60
+HELLO_TIME_SECS     = 120
 BROADCAST_ADDR      = 'FFFF'
 SF                = 7
 TX_POWER_DBM       = 14
@@ -14,7 +14,7 @@ NOISE_FIGURE_DB    = 6.0
 PATH_LOSS_EXPONENT = 2.7
 INITIAL_SETUP_TIME_SECS = 2
 
-DATA_TIME_SECS = 4
+DATA_TIME_SECS = 20
 
 DEBUG = False
 

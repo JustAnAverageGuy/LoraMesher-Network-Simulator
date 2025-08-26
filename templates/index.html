@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link href="{{ url_for('static', filename='bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
     <title>Network Simulation Dashboard</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
   </head>
@@ -20,7 +21,10 @@
       <div class="row g-3">
         <div class="col-lg-3">
           <div class="card shadow-sm">
-            <div class="card-header fw-semibold">Simulation Controls</div>
+            <div class="d-flex justify-content-between card-header fw-semibold">
+              Simulation Controls
+              <div id="timer"></div>
+            </div>
             <div class="card-body">
               <form id="control-form">
                 <div class="mb-3">
@@ -99,12 +103,21 @@
           </div>
         </div>
       </div>
-
         <div class="col-lg-9">
           <div class="row g-3">
             <div class="col-lg-8">
               <div class="card shadow-sm">
-                <div class="card-header fw-semibold">Simulation Canvas</div>
+                <div class="card-header fw-semibold d-flex justify-content-between">
+                  Simulation Canvas
+                  <div>
+                    <button id="download-btn" class="btn btn-sm btn-outline-secondary" title="Download Configuration">
+                        <i class="bi bi-download"></i>
+                    </button>
+                    <button id="upload-btn" class="btn btn-sm btn-outline-secondary ms-2" title="Upload Configuration">
+                        <i class="bi bi-upload"></i>
+                    </button>
+                  </div>
+                 </div>
                 <div class="card-body p-0">
                   <div id="canvas-wrap" class="bg-white">
                     <svg id="svg" class="bg-white border border-1"></svg>
@@ -150,6 +163,9 @@
             <li class="list-group-item">
               <strong>New Nodes Added:</strong> {{ state.new_nodes_added }}
             </li>
+            <li class="list-group-item">
+              <strong>Initial Broadcast Messages Sent:</strong> {{ state.initial_broadcast_messages_sent }}
+            </li>
           </ul>
         </div>
       </div>
@@ -160,12 +176,12 @@
 
       // All the constants which were being passed as a template variable
       const state = {
-        n                   : {{ state.n }},
-        sf                  : {{ state.sf }},
-        size_km             : {{ state.size_km }},
-        tx_power_dbm        : {{ state.tx_power_dbm }},
-        connection_range_km : {{ state.connection_range_km }},
-        path_loss_exponent  : {{ state.path_loss_exponent }},
+        n                   : '{{ state.n }}',
+        sf                  : '{{ state.sf }}',
+        size_km             : '{{ state.size_km }}',
+        tx_power_dbm        : '{{ state.tx_power_dbm }}',
+        connection_range_km : '{{ state.connection_range_km }}',
+        path_loss_exponent  : '{{ state.path_loss_exponent }}',
       };
     </script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
