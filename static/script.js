@@ -195,6 +195,14 @@ function render(nodes) {
       hideTooltip();
     });
 
+    nodeC.addEventListener("click", e => {
+      // emit event to server to remove node
+      const confirmRemove = confirm(`Remove node ${n.name}?`);
+      if (confirmRemove) {
+        socket.emit("remove_node", { name: n.name });
+      }
+    });
+
     nodesGroup.appendChild(nodeC);
 
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -226,12 +234,12 @@ function renderSidePanel(nodes, nodeElementsMap) {
     const table = document.createElement("table");
     table.className = "routes-table table table-sm";
     const thead = document.createElement("thead");
-    thead.innerHTML = "<tr><th>dst</th><th>via</th><th>metric</th><th>rssi</th><th>snr</th><th>role</th></tr>";
+    thead.innerHTML = "<tr><th>dst</th><th>via</th><th>metric</th><th>snr</th><th>role</th></tr>";
     table.appendChild(thead);
     const tbody = document.createElement("tbody");
     n.routes.forEach(r => {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td><td>${r.rssi.toFixed(2)}</td><td>${r.snr.toFixed(2)}</td><td>${r.role}</td>`;
+      tr.innerHTML = `<td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td><td>${r.snr.toFixed(2)}</td><td>${r.role}</td>`;
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
@@ -321,7 +329,6 @@ document.getElementById("update-button").addEventListener("click", event => {
 
 document.getElementById("reroute-switch").addEventListener("change", event => {
   const reroute = event.target.checked;
-  socket.emit("set_reroute", { reroute_on_new_node: reroute });
   event.target.nextElementSibling.textContent = reroute ? "Yes" : "No";
 });
 
@@ -364,7 +371,7 @@ socket.on("statistics", data => {
   stats.innerHTML = `
   <li class="list-group-item"><strong>Total Messages Sent:</strong> ${data.total_messages_sent}</li>
   <li class="list-group-item"><strong>Total Messages Received:</strong> ${data.total_messages_received}</li>
-  <li class="list-group-item"><strong>Average Time to Deliver (s):</strong> ${data.average_time_to_deliver}</li>
+  <li class="list-group-item"><strong>Average Time to Deliver (ms):</strong> ${data.average_time_to_deliver * 1000}</li>
   <li class="list-group-item"><strong>Total Routes Broadcasted:</strong> ${data.total_routes_broadcasted}</li>
   <li class="list-group-item"><strong>Average New Node Discovery Time (s):</strong> ${data.average_new_node_discovery_time}</li>
   <li class="list-group-item"><strong>New Nodes Added:</strong> ${data.new_nodes_added}</li>

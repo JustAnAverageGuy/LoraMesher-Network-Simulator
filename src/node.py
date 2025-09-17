@@ -4,9 +4,7 @@ from threading import Timer
 from datetime import datetime
 
 from .packet import DataPacket, Packet, RouteInfo, Routes, RoutingPacket, RoutingTable
-from .constants import CONNECTION_RANGE_KM, DEBUG, HELLO_TIME_SECS, SIZE_KM, PacketType, Role, DATA_TIME_SECS, INITIAL_SETUP_TIME_SECS
-
-
+from .constants import CONNECTION_RANGE_KM, DEBUG, HELLO_TIME_SECS, SIZE_KM, PacketType, Role, DATA_TIME_SECS, INITIAL_SETUP_TIME_SECS, REMOVAL_MULTIPLIER
 class Node:
     _stopped = False
     _total_messages_sent = 0
@@ -50,14 +48,19 @@ class Node:
             "data_forwarded": 0,
             "dropped": 0,
         }
-        self.timer_handle = Timer(INITIAL_SETUP_TIME_SECS + random(), self.broadcast_routing)
+        self.timer_handle = Timer(INITIAL_SETUP_TIME_SECS + random()*3, self.broadcast_routing)
         self.timer_handle.daemon = True
         self.timer_handle.start()
         self.timer_handle_data = None
         if self.role == Role.SENSOR:
-            self.timer_handle_data = Timer(INITIAL_SETUP_TIME_SECS + random(), self.broadcast_data)
+            self.timer_handle_data = Timer(INITIAL_SETUP_TIME_SECS + random()*3, self.broadcast_data)
             self.timer_handle_data.daemon = True
             self.timer_handle_data.start()
+
+        self.route_timeout_timer = Timer(HELLO_TIME_SECS * REMOVAL_MULTIPLIER, self.remove_stale_routes)
+        self.route_timeout_timer.daemon = True
+        self.route_timeout_timer.start()
+
     def process_route(self, src: str, routes: Routes, role: Role = Role.NORMAL):
         self.stats["routing_received"] += 1
         is_routing_table_updated = False
@@ -123,8 +126,8 @@ class Node:
             message.via = via
             self.broadcast(message)
             return
+        Node._average_time_to_deliver = ((Node._average_time_to_deliver * Node._total_messages_received) + (receive_time - message.timestamp).total_seconds()) / (Node._total_messages_received + 1) # pyright: ignore[reportOperatorIssue]
         Node._total_messages_received += 1
-        Node._average_time_to_deliver += ((receive_time - message.timestamp).total_seconds() - Node._average_time_to_deliver) / Node._total_messages_received if message.timestamp is not None else 0.0
         print(f"{self.name} received data packet, processing content: {message.content}")
 
     def broadcast(self, message: Packet):
@@ -200,6 +203,24 @@ class Node:
             sum((x - y) ** 2 for x, y in zip(self.position, other.position))
             <= self.connection_range**2
         )
+
+    def remove_stale_routes(self):
+        current_time = datetime.now()
+        max_timeout = HELLO_TIME_SECS * REMOVAL_MULTIPLIER
+        stale_nodes = [
+            node for node, info in self.routes.routing_table.items()
+            if (current_time - info["timestamp"]).total_seconds() > max_timeout
+        ]
+        for node in stale_nodes:
+            del self.routes.routing_table[node]
+            if DEBUG: print(f"{self}: Removed stale route to {node}")
+        if not Node._stopped:
+            self.route_timeout_timer = Timer(max_timeout, self.remove_stale_routes)
+            self.route_timeout_timer.daemon = True
+            self.route_timeout_timer.start()
+        else:
+            if self.route_timeout_timer is not None:
+                self.route_timeout_timer.cancel()
 
     def __repr__(self):
         x, y = self.position

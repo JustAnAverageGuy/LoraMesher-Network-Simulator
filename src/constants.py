@@ -4,7 +4,8 @@ import sys
 N                   = 10
 SIZE_KM             = 10
 CONNECTION_RANGE_KM = 3
-HELLO_TIME_SECS     = 120
+HELLO_TIME_SECS     = 10
+REMOVAL_MULTIPLIER   = 3
 BROADCAST_ADDR      = 'FFFF'
 SF                = 7
 TX_POWER_DBM       = 14

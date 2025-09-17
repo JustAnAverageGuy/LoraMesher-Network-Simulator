@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from .utils import calculate_snr_rssi
 from .constants import BROADCAST_ADDR, PacketType, Role
+from datetime import datetime
 
 
 class Packet:
@@ -49,26 +50,39 @@ class RoutingTable:
         if dst == self.name: return False
         rssi, snr = calculate_snr_rssi(dist)
         if dst not in self.routing_table:
+            if metric > self.get_maximum_metric() + 1:
+                print(f"Rejecting route to {dst} via {via} with metric {metric} as it's too high", flush=True)
+                return False
             self.routing_table[dst] = {
                 "metric": metric,
                 "via": via,
                 "rssi": rssi,
                 "snr": snr,
                 "role": role,
+                "timestamp": datetime.now(),
             }
         else:
-            if (self.routing_table[dst]["metric"] < metric or (self.routing_table[dst]["metric"] == metric and snr <= self.routing_table[dst]['snr'])): return False # can be less than equal to or not
-            
+            if (self.routing_table[dst]["metric"] < metric or (self.routing_table[dst]["metric"] == metric and snr <= self.routing_table[dst]['snr'])):
+                if (self.routing_table[dst]["metric"] == metric):
+                    self.routing_table[dst]["timestamp"] = datetime.now()
+                return False
+            if metric > self.get_maximum_metric() + 1:
+                print(f"Rejecting route to {dst} via {via} with metric {metric} as it's too high", flush=True)
+                return False
             self.routing_table[dst] = {
                 "metric": metric,
                 "via": via,
                 "rssi": rssi,
                 "snr": snr,
                 "role": role,
+                "timestamp": datetime.now(),
             }
         return True
-    def remove_route(self, dst: str):
-        raise NotImplementedError("TODO: node deletion, delete via fields as well")
+
+    def get_maximum_metric(self) -> int:
+        if not self.routing_table:
+            return 0
+        return max(info["metric"] for info in self.routing_table.values())
 
     def __str__(self) -> str:
         return f"Routing Table for {self.name}\n" + "\n".join(

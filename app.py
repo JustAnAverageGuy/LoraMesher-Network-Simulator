@@ -107,6 +107,8 @@ def clear_nodes():
                 node.timer_handle_data.cancel()
         except Exception:
             pass
+        if node.route_timeout_timer is not None:
+            node.route_timeout_timer.cancel()
     all_nodes.clear()
     print(Node._all_nodes, flush=True)
     Node._stopped = False
@@ -256,6 +258,35 @@ def on_load_topology(data):
     nodes = snapshot_nodes()
     socketio.emit("snapshot", {"nodes": nodes})
     print("Loaded new topology and emitted snapshot", flush=True)
+
+@socketio.on("remove_node")
+def on_remove_node(data):
+    node_name = data.get("name")
+    print(f"Removing node: {node_name}", flush=True)
+    global all_nodes
+    node_to_remove = None
+    for node in all_nodes:
+        if node.name == node_name:
+            node_to_remove = node
+            break
+    if node_to_remove:
+        if node_to_remove.timer_handle is not None:
+            node_to_remove.timer_handle.cancel()
+        try:
+            if node_to_remove.timer_handle_data is not None:
+                node_to_remove.timer_handle_data.cancel()
+        except Exception:
+            pass
+        if node_to_remove.route_timeout_timer is not None:
+            node_to_remove.route_timeout_timer.cancel()
+        all_nodes.remove(node_to_remove)
+        Node._all_nodes = all_nodes
+        del node_to_remove
+        print(f"Updated all_nodes after removal: {Node._all_nodes}", flush=True)
+        print(f"Node {node_name} removed", flush=True)
+        nodes = snapshot_nodes()
+        socketio.emit("snapshot", {"nodes": nodes})
+        print("Emitted snapshot after node removal", flush=True)
 
 
 if __name__ == "__main__":
