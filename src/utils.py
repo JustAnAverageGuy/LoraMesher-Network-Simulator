@@ -74,3 +74,45 @@ def lora_max_range(
     exponent = (pl_max_db - pl_d0_db) / (10 * path_loss_exp)
     max_range_m = d0_m * (10 ** exponent)
     return max_range_m
+
+def calculate_time_on_air(payload_size_bytes, sf, bandwidth_hz=125_000,
+                      coding_rate=1, preamble_len=8, crc=True):
+    """
+    Calculate LoRa Time on Air (ToA) in seconds.
+
+    Parameters:
+        payload_size_bytes (int): Size of the payload in bytes
+        sf (int): Spreading Factor (7 to 12)
+        bandwidth_hz (int): Bandwidth in Hz (default: 125000)
+        coding_rate (int): Coding rate denominator (1 to 4, representing 4/5 to 4/8)
+        preamble_len (int): Preamble length in symbols (default: 8)
+        crc (bool): Whether CRC is enabled (default: True)
+    Returns:
+        float: Time on Air in seconds
+    """
+    if sf < 7 or sf > 12:
+        raise ValueError("Spreading Factor (sf) must be between 7 and 12")
+    if coding_rate < 1 or coding_rate > 4:
+        raise ValueError("Coding rate must be between 1 (4/5) and 4 (4/8)")
+    if bandwidth_hz not in [125000, 250000, 500000]:
+        raise ValueError("Bandwidth must be one of 125000, 250000, or 500000 Hz")
+    # Symbol duration
+    ts = (2 ** sf) / bandwidth_hz  # seconds
+    # Preamble duration
+    t_preamble = (preamble_len + 4.25) * ts  # seconds
+    # Payload symbol calculation
+    payload_size_bits = payload_size_bytes * 8
+    h = 0  # Implicit header disabled (0) or enabled (1)
+    de = 1 if (sf >= 11 and bandwidth_hz == 125000) else 0  # Low data rate optimization
+    crc_val = 1 if crc else 0
+    n_payload = 8 + max(
+        math.ceil(
+            (8 * payload_size_bytes - 4 * sf + 28 + 16 * crc_val - 20 * h)
+            / (4 * (sf - 2 * de))
+        ) * (coding_rate + 4),
+        0
+    )
+    t_payload = n_payload * ts  # seconds
+    # Total Time on Air
+    t_on_air = t_preamble + t_payload  # seconds
+    return t_on_air, t_preamble

@@ -74,13 +74,13 @@ def snapshot_nodes():
     return nodes
 
 
-def add_new_node(position=None):
+def add_new_node(position:tuple[float, float]=(0, 0)):
     """Add a new node to the simulation."""
     global all_nodes
     all_nodes.append(
         Node(
             name=f"[node-{len(all_nodes)}]",
-            position=position if position else (0, 0),
+            position=position,
             connection_range=context.connection_range_km,
             size_km=context.size_km,
         )
@@ -205,7 +205,7 @@ def on_update(data):
 def on_add_node(data):
     """Handle adding a new node."""
     print("Adding node:", data, flush=True)
-    position = data.get("position", (0, 0))
+    position = tuple(data.get("position", (0, 0)))
     add_new_node(position)
     added_time = datetime.now()
     print(f"Node added at {added_time}", flush=True)

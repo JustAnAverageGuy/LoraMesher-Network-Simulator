@@ -28,6 +28,12 @@ class Role(Enum):
     NORMAL  = 2
     SENSOR = 3
 
+RED = '\x1b[31m'
+GREEN = '\x1b[32m'
+YELLOW = '\x1b[33m'
+BROWN = '\x1b[35m'
+BLUE = '\x1b[34m'
+RESET = '\x1b[0m'
 
 if __name__ == "__main__":
     sys.exit(1)

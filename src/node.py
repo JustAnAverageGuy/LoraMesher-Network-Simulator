@@ -1,10 +1,14 @@
 from random import random
 import sys
 from threading import Timer
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
+
+from .utils import calculate_time_on_air
 
 from .packet import DataPacket, Packet, RouteInfo, Routes, RoutingPacket, RoutingTable
 from .constants import CONNECTION_RANGE_KM, DEBUG, HELLO_TIME_SECS, SIZE_KM, PacketType, Role, DATA_TIME_SECS, INITIAL_SETUP_TIME_SECS, REMOVAL_MULTIPLIER
+from .constants import RED, GREEN, YELLOW, BROWN, RESET, BLUE
 class Node:
     _stopped = False
     _total_messages_sent = 0
@@ -18,6 +22,9 @@ class Node:
     _routing_interval = HELLO_TIME_SECS
     _initial_broadcast_messages_sent = 0
     _all_nodes: list["Node"] = []
+    _sf = 7
+    _ongoing_transmissions : set[tuple[datetime, datetime, float, tuple[float, float]]] = set()  # (node name, start time, end time)
+
     def __init__(
         self,
         name: str,
@@ -28,6 +35,7 @@ class Node:
     ):
         self.name = name
         self.role = role
+        self.receive_lock = False
 
         if position is None:
             position = (
@@ -104,6 +112,7 @@ class Node:
 
     def receive(self, message: Packet):
         if DEBUG: print(f"{self.name} received {message}")
+        self.receive_lock = False
         if message.type == PacketType.ROUTING:
             self.process_route(message.src, message.routes, message.role)  # pyright: ignore[reportAttributeAccessIssue]
         elif message.type == PacketType.DATA:
@@ -117,7 +126,7 @@ class Node:
             print(f"{self.name} received data packet but not the destination or via, ignoring")
             return
         if message.dst != self.name and message.via == self.name:
-            print(f"{self.name} received data packet, forwarding to {message.dst}")
+            print(f"{BROWN}{self.name} received data packet, forwarding to {message.dst}{RESET}")
             self.stats["data_forwarded"] += 1
             via = self.routes.routing_table.get(message.dst, {}).get("via", self.name)
             if via is None:
@@ -134,11 +143,44 @@ class Node:
         if Node._all_nodes is None:
             print(f"{self.name} has no nodes to broadcast to")
             return
+        time_on_air, preamble_time = calculate_time_on_air(len(message.content) if isinstance(message, DataPacket) else 0, sf=Node._sf)
+
+        while not self.perform_cad(datetime.now(), datetime.now() + timedelta(seconds=time_on_air)):
+            random_wait = random()
+            print(f"{YELLOW}{self.name} CAD detected channel busy, waiting for {random_wait * 1000:.2f} ms {RESET}")
+            time.sleep(random_wait)
+
+        start_time = datetime.now()
+        end_time = start_time + timedelta(seconds=time_on_air)
+        Node._ongoing_transmissions.add((start_time, end_time, preamble_time, self.position))
+        time.sleep(time_on_air)  # Simulate transmission time
+        Node._ongoing_transmissions.remove((start_time, end_time, preamble_time, self.position))
+    
+        print(f"{GREEN if message.type == PacketType.DATA else BLUE}{self.name} finished transmission in {time_on_air*1000:.2f} ms{RESET}")
         for node in Node._all_nodes:
             if not self.can_send(node):
                 continue
-            node.receive(message)
+            if not node.receive_lock:
+                node.receive_lock = True
+                node.receive(message)
+            else:
+                node.stats["dropped"] += 1
+                print(f"{RED} {node.name} is busy, dropping packet from {self.name} {RESET}")
         return
+    
+    def perform_cad(self, start_time: datetime, end_time: datetime) -> bool:
+        """
+        Check if the channel is free for transmission between start_time and end_time.
+        Checks only against neighboring nodes' ongoing transmissions.
+        """
+        for ongoing_start, ongoing_end, t_preamble, node_pos in Node._ongoing_transmissions:
+            dist = sum((x - y) ** 2 for x, y in zip(self.position, node_pos)) ** 0.5
+            if dist > self.connection_range:
+                continue  # Ignore nodes out of range
+            # Check for overlap considering preamble time
+            if not (end_time < ongoing_start + timedelta(seconds=t_preamble) or start_time > ongoing_end):
+                return False  # Channel is busy
+        return True  # Channel is free
     
     def broadcast_data(self, content: str = "Hello from Node"):
         closest_gateway_in_routing_table = None
