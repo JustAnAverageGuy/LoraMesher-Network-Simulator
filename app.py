@@ -16,8 +16,8 @@ from src.main import Context, create_simulation
 from src.utils import lora_max_range
 
 context = Context()
-all_nodes = create_simulation(context=context)
-print("nodes created", flush=True)
+all_nodes = []
+# print("nodes created", flush=True)
 
 
 app = Flask(__name__)
@@ -288,6 +288,23 @@ def on_remove_node(data):
         socketio.emit("snapshot", {"nodes": nodes})
         print("Emitted snapshot after node removal", flush=True)
 
+@socketio.on("set_center")
+def on_set_center(data):
+    """Handle setting the map center from the client."""
+    lat = data.get("position")[0]
+    lon = data.get("position")[1]
+    Node._center = (lat, lon)
+    print(f"Setting map center to: ({lat}, {lon})", flush=True)
+
+@socketio.on("start_simulation")
+def on_start_simulation():
+    """Handle starting the simulation."""
+    global all_nodes, context
+    clear_nodes()
+    print("Starting simulation", flush=True)
+    all_nodes = create_simulation(context=context)
+    print("Simulation started", flush=True)
+    
 
 if __name__ == "__main__":
     # Start the simulation if main exposes a function to do so. If your

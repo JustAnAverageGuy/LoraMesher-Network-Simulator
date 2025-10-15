@@ -1,15 +1,17 @@
-from random import random
+from random import random, uniform
 import sys
 from threading import Timer
 from datetime import datetime, timedelta
 import time
+import math
 
-from .utils import calculate_time_on_air
+from .utils import calculate_time_on_air, random_position_within_radius, get_haversine_distance
 
 from .packet import DataPacket, Packet, RouteInfo, Routes, RoutingPacket, RoutingTable
 from .constants import CONNECTION_RANGE_KM, DEBUG, HELLO_TIME_SECS, SIZE_KM, PacketType, Role, DATA_TIME_SECS, INITIAL_SETUP_TIME_SECS, REMOVAL_MULTIPLIER
 from .constants import RED, GREEN, YELLOW, BROWN, RESET, BLUE
 class Node:
+    _center = (28.6139, 77.2090)  # Default center (New Delhi)
     _stopped = False
     _total_messages_sent = 0
     _total_messages_received = 0
@@ -38,10 +40,7 @@ class Node:
         self.receive_lock = False
 
         if position is None:
-            position = (
-                random() * size_km,
-                random() * size_km,
-            )
+            position = random_position_within_radius(center_lat=Node._center[0], center_lon=Node._center[1], radius_km=size_km/2)
 
         self.position = position
         self.connection_range = connection_range
@@ -241,10 +240,8 @@ class Node:
     def can_send(self, other: "Node"):
         if other == self:
             return False
-        return (
-            sum((x - y) ** 2 for x, y in zip(self.position, other.position))
-            <= self.connection_range**2
-        )
+        distance = get_haversine_distance(self.position, other.position)
+        return distance <= min(self.connection_range, other.connection_range)
 
     def remove_stale_routes(self):
         current_time = datetime.now()

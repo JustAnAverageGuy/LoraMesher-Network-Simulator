@@ -1,4 +1,5 @@
 import math
+from random import random, uniform
 
 def calculate_snr_rssi(distance_km, tx_power_dbm = 20, frequency_mhz=868,
                                     bandwidth_hz=125000, noise_figure_db=6,
@@ -116,3 +117,48 @@ def calculate_time_on_air(payload_size_bytes, sf, bandwidth_hz=125_000,
     # Total Time on Air
     t_on_air = t_preamble + t_payload  # seconds
     return t_on_air, t_preamble
+
+
+def random_position_within_radius(center_lat, center_lon, radius_km):
+    """
+    Returns a random (lat, lon) point within `radius_km` kilometers 
+    of the given center coordinate (center_lat, center_lon).
+    """
+    R = 6371.0  # Earth radius in km
+
+    # Random distance (uniform over area) and random bearing
+    r = radius_km * math.sqrt(random())     # ensures uniform area distribution
+    theta = uniform(0, 2 * math.pi)         # random bearing in radians
+
+    # Convert distance to angular distance in radians
+    delta = r / R
+
+    # Convert to radians for calculations
+    lat1 = math.radians(center_lat)
+    lon1 = math.radians(center_lon)
+
+    # Destination point using great-circle formula
+    lat2 = math.asin(math.sin(lat1) * math.cos(delta) +
+                     math.cos(lat1) * math.sin(delta) * math.cos(theta))
+
+    lon2 = lon1 + math.atan2(math.sin(theta) * math.sin(delta) * math.cos(lat1),
+                             math.cos(delta) - math.sin(lat1) * math.sin(lat2))
+
+    # Convert back to degrees
+    lat2 = math.degrees(lat2)
+    lon2 = math.degrees(lon2)
+
+    return lat2, lon2
+
+def get_haversine_distance(pos1, pos2):
+    lat1, lon1 = pos1
+    lat2, lon2 = pos2
+    R = 6371.0  # Earth radius in km
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2 +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+         math.sin(dlon / 2) ** 2)
+    c = 2 * math.asin(math.sqrt(a))
+    distance = R * c
+    return distance

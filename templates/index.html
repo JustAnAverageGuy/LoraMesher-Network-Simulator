@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
     <title>Network Simulation Dashboard</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   </head>
   <body>
     <div class="py-4">
@@ -25,7 +26,7 @@
               Simulation Controls
               <div id="timer"></div>
             </div>
-            <div class="card-body">
+            <div class="card-body vh-100 overflow-auto">
               <form id="control-form">
                 <div class="mb-3">
                   <label class="form-label">Number of Nodes: <span id='num-nodes-label'>{{state.n}}</span></label>
@@ -104,8 +105,8 @@
         </div>
       </div>
         <div class="col-lg-9">
-          <div class="row g-3">
-            <div class="col-lg-8">
+          <!-- <div class="row g-3"> -->
+            <!-- <div class="col-lg-8"> -->
               <div class="card shadow-sm">
                 <div class="card-header fw-semibold d-flex justify-content-between">
                   Simulation Canvas
@@ -118,24 +119,22 @@
                     </button>
                   </div>
                  </div>
-                <div class="card-body p-0">
-                  <div id="canvas-wrap" class="bg-white">
-                    <svg id="svg" class="bg-white border border-1"></svg>
+                <div class="card-body p-0 vh-100 overflow-auto">
+                    <div id="map" class="w-100 h-100"></div>
                     <div id="tooltip"></div>
-                  </div>
                 </div>
               </div>
-            </div>
+            <!-- </div> -->
 
-            <div class="col-lg-4">
+            <!-- <div class="col-lg-4">
               <div class="card shadow-sm">
                 <div class="card-header fw-semibold">Nodes</div>
                 <div class="card-body vh-100 p-2 overflow-auto">
                   <div id="nodes-list"></div>
                 </div>
               </div>
-            </div>
-          </div>
+            </div> -->
+          <!-- </div> -->
         </div>
       </div>
     </div>
@@ -184,6 +183,7 @@
         path_loss_exponent  : '{{ state.path_loss_exponent }}',
       };
     </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
   </body>

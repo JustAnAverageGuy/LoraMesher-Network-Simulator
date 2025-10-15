@@ -1,13 +1,37 @@
 const socket = io();
-const svg = document.getElementById("svg");
 const tooltip = document.getElementById("tooltip");
-const nodesGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
 const simulationDurationInput = document.getElementById("sim-duration");
 const enableSimulationCheckBox = document.getElementById("enable-simulation");
 const newNodeAdditionIntervalInput = document.getElementById("new-node-interval");
 
-svg.appendChild(nodesGroup);
+
+//Map Settings
+const map =  L.map('map').locate({setView: true, maxZoom: 16});
+const initialLatLng = [28.6139, 77.2090]; // Default coordinates if geolocation fails
+function onLocationFound(e) {
+    var radius = e.accuracy;
+    L.marker(e.latlng).addTo(map)
+        .bindPopup("You are within " + radius + " meters from this point").openPopup();
+    L.circle(e.latlng, radius).addTo(map);
+    initialLatLng[0] = e.latlng.lat;
+    initialLatLng[1] = e.latlng.lng;
+    socket.emit("set_center", { position: [initialLatLng[0], initialLatLng[1]] });
+}
+function onLocationError(e) {
+    console.warn(e.message);
+    map.setView(initialLatLng, 13); // Set view to default coordinates
+}
+map.on('locationfound', onLocationFound);
+map.on('locationerror', onLocationError);
+
+
+// Add OpenStreetMap tiles
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+
 
 // Controls
 const slider = document.getElementById("num-nodes");
@@ -52,172 +76,103 @@ if (enableSimulationCheckBox.checked) {
 
 // TOOLTIP HANDLING{{{
 
-function showTooltip(evt, node) {// {{{
-  let html = `<strong>${node.name}</strong> (${node.role})<br>`;
-  html += `Position: (${node.x.toFixed(2)}, ${node.y.toFixed(2)})<br>`;
-  if (node.stats) {
-    html += `<div><strong>Stats:</strong></div>`;
-    html += `<table style="width:100%; border-collapse:collapse; margin-bottom:6px;">`;
-    html += `<tbody>`;
-    for (const [key, value] of Object.entries(node.stats)) {
-      html += `<tr><td style="padding:2px 4px; border:1px solid #ddd;">${key}</td><td style="padding:2px 4px; border:1px solid #ddd;">${value}</td></tr>`;
-    }
-    html += `</tbody></table>`;
+function update_tooltip(node){
+  if (nodes[node.name] && nodes[node.name].marker.isPopupOpen())
+  {
+      let html = `<strong>${node.name}</strong> (${node.role})`;
+      html += `<button name="${node.name}" id="delete-btn" style="color:red; border:none; padding:2px 6px; cursor:pointer;" onclick="removeNode(this.name)" title="Remove Node"><i class="bi bi-trash"></i></button><br>`;
+      html += `Position: (${node.x.toFixed(2)}, ${node.y.toFixed(2)})<br>`;
+      if (node.stats) {
+        html += `<div><strong>Stats:</strong></div>`;
+        html += `<table style="width:100%; border-collapse:collapse; margin-bottom:6px;">`;
+        html += `<tbody>`;
+        for (const [key, value] of Object.entries(node.stats)) {
+          html += `<tr><td style="padding:2px 4px; border:1px solid #ddd;">${key}</td><td style="padding:2px 4px; border:1px solid #ddd;">${value}</td></tr>`;
+        }
+        html += `</tbody></table>`;
+      }
+      if (node.routes.length > 0) {
+        html += '<table style="width:100%; border-collapse:collapse; margin-bottom:6px;"><thead><tr><th>dst</th><th>via</th><th>metric</th><th>role</th></tr></thead><tbody>';
+        node.routes.forEach(r => {
+          html += `<tr><td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td><td>${r.role}</td></tr>`;
+        });
+        html += "</tbody></table>";
+      } else {
+        html += "<em>No routes</em>";
+      }
+      nodes[node.name].marker.setPopupContent(html);
   }
-  if (node.routes.length > 0) {
-    html += "<table><thead><tr><th>dst</th><th>via</th><th>metric</th><th>role</th></tr></thead><tbody>";
-    node.routes.forEach(r => {
-      html += `<tr><td>${r.dst}</td><td>${r.via}</td><td>${r.metric}</td><td>${r.role}</td></tr>`;
-    });
-    html += "</tbody></table>";
-  } else {
-    html += "<em>No routes</em>";
+}
+
+function removeNode(name){
+  if (nodes[name])
+  {
+    confirmation = confirm(`Are you sure you want to remove node ${name}?`);
+    if (!confirmation) return;
+    map.removeLayer(nodes[name].marker);
+    map.removeLayer(nodes[name].circle);
+    delete nodes[name];
+    socket.emit("remove_node", { name });
+    window.location.reload();
   }
-  tooltip.innerHTML = html;
-  tooltip.style.display = "block";
-  positionTooltip(evt);
-} // }}}
-
-function positionTooltip(evt) {// {{{
-  const tooltipRect = tooltip.getBoundingClientRect();
-  const svgRect = svg.getBoundingClientRect();
-
-  let left = evt.clientX - svgRect.left + 10;
-  let top = evt.clientY - svgRect.top + 10;
-
-  // Prevent right overflow
-  if (left + tooltipRect.width > svg.clientWidth) {
-    left = evt.clientX - svgRect.left - tooltipRect.width - 10;
-  }
-  // Prevent bottom overflow
-  if (top + tooltipRect.height > svg.clientHeight) {
-    top = evt.clientY - svgRect.top - tooltipRect.height - 10;
-  }
-
-  tooltip.style.left = left + "px";
-  tooltip.style.top = top + "px";
-} // }}}
-
-function moveTooltip(evt) {// {{{
-  positionTooltip(evt);
-} // }}}
-
-function hideTooltip() {// {{{
-  tooltip.style.display = "none";
-} // }}}
-
-//}}}
+}
 
 // GRAPH RENDERING {{{
-
-function clearSvg() {
-  while (nodesGroup.firstChild) nodesGroup.removeChild(nodesGroup.firstChild);
-}
-
-function render(nodes) {
-  clearSvg();
-  const width = svg.clientWidth;
-  const height = svg.clientHeight;
-
-  const nodeElementsMap = {}; // store circle + range for quick lookup
-
-  const screenPos = nodes.map(n => ({
-    name: n.name,
-    x: (n.x / SIZE_KM) * width,
-    y: (n.y / SIZE_KM) * height,
-  }));
-
-  const rScreen = (CONNECTION_RANGE_KM / SIZE_KM) * Math.min(width, height);
-
-  console.table({
-    width,
-    height,
-    SIZE_KM,
-    CONNECTION_RANGE_KM,
-    rScreen,
+  
+const nodes = {};
+function clearMap(){
+  Object.values(nodes).forEach(n=>{
+    map.removeLayer(n.marker);
+    map.removeLayer(n.circle);
   });
-
-  // Connections
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      const dx = nodes[i].x - nodes[j].x;
-      const dy = nodes[i].y - nodes[j].y;
-      const dist2 = dx * dx + dy * dy;
-      if (dist2 <= CONNECTION_RANGE_KM * CONNECTION_RANGE_KM) {
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute("x1", screenPos[i].x);
-        line.setAttribute("y1", screenPos[i].y);
-        line.setAttribute("x2", screenPos[j].x);
-        line.setAttribute("y2", screenPos[j].y);
-        line.setAttribute("stroke", "green");
-        line.setAttribute("stroke-width", "1");
-        line.setAttribute("opacity", "0.5");
-        nodesGroup.appendChild(line);
-      }
-    }
+  for (const key in nodes) {
+    delete nodes[key];
   }
-
-  // Nodes
-  nodes.forEach(n => {
-    const cx = (n.x / SIZE_KM) * width;
-    const cy = (n.y / SIZE_KM) * height;
-
-    const r = (CONNECTION_RANGE_KM / SIZE_KM) * Math.min(width, height);
-    const circ = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    circ.setAttribute("cx", cx);
-    circ.setAttribute("cy", cy);
-    circ.setAttribute("r", r);
-    circ.setAttribute("fill", "none");
-    circ.setAttribute("stroke", "#bbb");
-    circ.setAttribute("stroke-width", "1");
-    circ.setAttribute("opacity", "0.7");
-    nodesGroup.appendChild(circ);
-
-    const nodeC = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    nodeC.setAttribute("cx", cx);
-    nodeC.setAttribute("cy", cy);
-    nodeC.setAttribute("r", 6);
-    const isGateway = n.role == "GATEWAY";
-    const isSensor = n.role == "SENSOR";
-    nodeC.setAttribute("fill", isGateway ? "red" : isSensor ? "purple" : "#007bff");
-    nodeC.classList.add("node");
-    nodeC.dataset.name = n.name;
-
-    nodeC.addEventListener("mouseenter", e => {
-      circ.classList.add("highlight-range");
-      nodeC.classList.add("highlight-node");
-      showTooltip(e, n);
-    });
-    nodeC.addEventListener("mousemove", moveTooltip);
-    nodeC.addEventListener("mouseleave", () => {
-      circ.classList.remove("highlight-range");
-      nodeC.classList.remove("highlight-node");
-      hideTooltip();
-    });
-
-    nodeC.addEventListener("click", e => {
-      // emit event to server to remove node
-      const confirmRemove = confirm(`Remove node ${n.name}?`);
-      if (confirmRemove) {
-        socket.emit("remove_node", { name: n.name });
-      }
-    });
-
-    nodesGroup.appendChild(nodeC);
-
-    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    label.setAttribute("x", cx + 8);
-    label.setAttribute("y", cy + 4);
-    label.setAttribute("font-size", "12");
-    label.textContent = n.name;
-    nodesGroup.appendChild(label);
-
-    // store for sidepanel hover
-    nodeElementsMap[n.name] = { nodeCircle: nodeC, rangeCircle: circ };
-  });
-
-  renderSidePanel(nodes, nodeElementsMap);
 }
+
+function render_map(all_nodes){
+  all_nodes.forEach(n=>{
+    const name = n.name;
+    const lat = n.x;
+    const lon = n.y;
+    const role = n.role;
+    const color = role == "GATEWAY" ? 'blue' : (role == "SENSOR") ? 'purple' : 'gray';
+    if (nodes[name])
+    {
+      nodes[name].marker.setLatLng([lat, lon]);
+      nodes[name].circle.setLatLng([lat, lon]);
+      update_tooltip(n);
+    }
+    else
+    {
+      // Create new Marker
+      nodes[name] = {
+        marker: L.circleMarker([lat, lon], {
+        radius: 6,
+        color: color,
+        fillOpacity: 0.8
+        }).bindPopup(`${name} (${role})`).addTo(map),
+        circle: L.circle([lat, lon], {
+            radius: CONNECTION_RANGE_KM * 1000, // e.g. connection range in meters
+            color: "green",
+            opacity: 0.3,
+            fillOpacity: 0.05,
+            interactive: false  
+          }).addTo(map)
+      }
+      // highlight circle on marker hover
+      nodes[name].marker.on('mouseover', function() {
+        this.setStyle({ weight: 3 });
+        nodes[name].circle.setStyle({ opacity: 0.5, fillOpacity: 0.1 });
+      });
+      nodes[name].marker.on('mouseout', function() {
+        this.setStyle({ weight: 1 });
+        nodes[name].circle.setStyle({ opacity: 0.3, fillOpacity: 0.05 });
+      });
+    }
+  })
+}
+
 
 function renderSidePanel(nodes, nodeElementsMap) {
   const list = document.getElementById("nodes-list");
@@ -336,27 +291,27 @@ document.getElementById("reroute-switch").addEventListener("change", event => {
 
 // SVG listener {{{
 // Click to add node
-svg.addEventListener("click", evt => {
-  if (evt.target.classList.contains("node")) return;
-  const rect = svg.getBoundingClientRect();
-  const clickX = evt.offsetX;
-  const clickY = evt.offsetY;
-  const width = svg.clientWidth;
-  const height = svg.clientHeight;
-  const simX = (clickX / width) * SIZE_KM;
-  const simY = (clickY / height) * SIZE_KM;
-  const confirmAdd = confirm(`Create a new node at (${simX.toFixed(2)}, ${simY.toFixed(2)})?`);
+// Listen for click events on the Leaflet map
+map.on('click', function (e) {
+  // e.latlng contains the geographic coordinates of the click
+  const lat = e.latlng.lat;
+  const lon = e.latlng.lng;
+
+  const confirmAdd = confirm(`Create a new node at:\nLatitude: ${lat.toFixed(5)}\nLongitude: ${lon.toFixed(5)} ?`);
+
   if (confirmAdd) {
-    socket.emit("add_node", { position: [simX, simY] });
+    // Send to backend via WebSocket (adjust your socket.emit or fetch call)
+    socket.emit("add_node", { position: [lat, lon] });
   }
-});// }}}
+});
+
 
 // SOCKET listeners {{{
 socket.on("connect", () => console.log(`${Date.now()} connected to server`));
 socket.on("disconnect", () => console.log(`${Date.now()} disconnected from the server`));
 socket.on("snapshot", data => {
   console.log(`SNAPSHOT RECEIVED`, data);
-  render(data.nodes);
+  render_map(data.nodes);
 });
 socket.on("range_update", data => {
   console.log("Received range update:", data);
